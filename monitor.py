@@ -101,16 +101,31 @@ async def process_account(
     state_tracker: StateTracker,
     gdrive_uploader: GoogleDriveUploader,
     report_generator: ReportGenerator,
-    email_sender: EmailSender,
-    subscribers: List[str],
     account: Dict[str, Any],
     max_posts: int = None,
     test_mode: bool = False,
-) -> AnalysisResult:
-    """Process a single Instagram account with full pipeline"""
+) -> Dict[str, Any]:
+    """
+    Process a single Instagram account with full pipeline
+    
+    Returns dict with:
+        - analysis_result: The AnalysisResult object
+        - report_paths: Dict with html/pdf paths (not deleted, for email attachment)
+        - folder_url: Google Drive folder URL
+        - flagged_items: List of flagged content for summary email
+    """
     username = account["username"]
     include_stories = account.get("include_stories", False)
     date_str = datetime.utcnow().strftime('%Y-%m-%d')
+    
+    result_data = {
+        'username': username,
+        'analysis_result': None,
+        'report_paths': {'html': None, 'pdf': None},
+        'folder_url': None,
+        'flagged_items': [],
+        'date_str': date_str,
+    }
     
     logger.info(f"\n{'='*60}")
     logger.info(f"PROCESSING: @{username}")
@@ -126,12 +141,13 @@ async def process_account(
     
     if scrape_result.error:
         logger.error(f"Scraping failed: {scrape_result.error}")
-        return AnalysisResult(
+        result_data['analysis_result'] = AnalysisResult(
             username=username,
             profile={"username": username},
             summary="",
             error=scrape_result.error
         )
+        return result_data
     
     # Step 2: Filter to NEW content only
     logger.info("Step 2: Filtering new content...")
@@ -141,7 +157,7 @@ async def process_account(
     if not new_posts and not new_stories:
         logger.info(f"No new content for @{username} - skipping analysis")
         scraper.cleanup(username)
-        return AnalysisResult(
+        result_data['analysis_result'] = AnalysisResult(
             username=username,
             profile=analyzer._profile_to_dict(scrape_result.profile),
             summary=f"No new content since last run. Account has {scrape_result.profile.post_count} total posts.",
@@ -150,6 +166,7 @@ async def process_account(
             total_stories=0,
             flagged_count=0
         )
+        return result_data
     
     logger.info(f"Found {len(new_posts)} new posts and {len(new_stories)} new stories")
     
@@ -171,6 +188,8 @@ async def process_account(
     if not test_mode and gdrive_uploader:
         uploaded_count = sum(1 for p in analysis_result.posts if p.get('gdrive_file_id'))
         logger.info(f"Step 4: {uploaded_count} media files uploaded to Google Drive during analysis")
+        # Get folder URL for summary email
+        result_data['folder_url'] = gdrive_uploader.get_folder_url(username, date_str)
     elif test_mode:
         logger.info("Step 4: Skipping Google Drive upload (test mode)")
     
@@ -190,9 +209,10 @@ async def process_account(
             },
             date_str=date_str
         )
+        result_data['report_paths'] = report_paths
         
         # Upload reports to Google Drive (directly in date folder)
-        if not test_mode:
+        if not test_mode and gdrive_uploader:
             try:
                 for report_type, report_path in report_paths.items():
                     if report_path:
@@ -208,25 +228,21 @@ async def process_account(
         logger.error(f"Report generation failed: {e}")
         report_paths = {'html': None, 'pdf': None}
     
-    # Step 6: Send email notifications
-    if not test_mode and subscribers and report_paths.get('html'):
-        logger.info("Step 6: Sending email notifications...")
-        try:
-            email_sent = email_sender.send_daily_report(
-                recipients=subscribers,
-                username=username,
-                date_str=date_str,
-                html_path=Path(report_paths['html']),
-                pdf_path=Path(report_paths['pdf']) if report_paths.get('pdf') else None
-            )
-            if email_sent:
-                logger.info(f"Email sent to {len(subscribers)} subscriber(s)")
-            else:
-                logger.warning("Email sending failed")
-        except Exception as e:
-            logger.error(f"Email sending failed: {e}")
-    else:
-        logger.info("Step 6: Skipping email (test mode or no subscribers)")
+    # Step 6: Build flagged items list for summary email
+    logger.info("Step 6: Collecting flagged content for summary...")
+    for post in analysis_result.posts:
+        if post.get('flagged'):
+            gdrive_url = None
+            if post.get('gdrive_file_id') and gdrive_uploader:
+                gdrive_url = gdrive_uploader.get_file_url(post['gdrive_file_id'])
+            
+            result_data['flagged_items'].append({
+                'type': 'story' if post.get('is_story') else 'post',
+                'url': post.get('url', ''),
+                'reason': post.get('flag_reason', ''),
+                'gdrive_url': gdrive_url,
+                'media_description': post.get('media_description', ''),
+            })
     
     # Step 7: Update state tracker
     logger.info("Step 7: Updating state...")
@@ -238,21 +254,14 @@ async def process_account(
         story_ids=story_ids
     )
     
-    # Step 8: Cleanup
-    logger.info("Step 8: Cleaning up...")
+    # Step 8: Cleanup temp downloads (but keep report files for summary email)
+    logger.info("Step 8: Cleaning up temp downloads...")
     scraper.cleanup(username)
-    
-    # Delete temporary report files
-    for report_path in report_paths.values():
-        if report_path and Path(report_path).exists():
-            try:
-                Path(report_path).unlink()
-            except:
-                pass
     
     logger.info(f"Processing complete for @{username}")
     
-    return analysis_result
+    result_data['analysis_result'] = analysis_result
+    return result_data
 
 
 async def main(accounts_file: str, max_posts: int = None, test_mode: bool = False):
@@ -324,32 +333,36 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
         else:
             logger.warning("Stories requested but no authentication configured")
     
-    # Process each account
+    # Process each account and collect results
+    all_results = []
+    date_str = datetime.utcnow().strftime('%Y-%m-%d')
+    
     for i, account in enumerate(accounts):
         username = account["username"]
         logger.info(f"\n[{i+1}/{len(accounts)}] Processing @{username}...")
         
         try:
-            result = await process_account(
+            result_data = await process_account(
                 scraper=scraper,
                 analyzer=analyzer,
                 state_tracker=state_tracker,
                 gdrive_uploader=gdrive_uploader,
                 report_generator=report_generator,
-                email_sender=email_sender,
-                subscribers=subscribers,
                 account=account,
                 max_posts=max_posts,
                 test_mode=test_mode,
             )
+            all_results.append(result_data)
             
             # Print summary
-            logger.info(f"\n  Summary for @{username}:")
-            logger.info(f"    New posts analyzed: {result.total_posts}")
-            logger.info(f"    New stories analyzed: {result.total_stories}")
-            logger.info(f"    Flagged items: {result.flagged_count}")
-            if result.error:
-                logger.error(f"    Error: {result.error}")
+            analysis = result_data.get('analysis_result')
+            if analysis:
+                logger.info(f"\n  Summary for @{username}:")
+                logger.info(f"    New posts analyzed: {analysis.total_posts}")
+                logger.info(f"    New stories analyzed: {analysis.total_stories}")
+                logger.info(f"    Flagged items: {analysis.flagged_count}")
+                if analysis.error:
+                    logger.error(f"    Error: {analysis.error}")
             
             # Show state stats
             stats = state_tracker.get_stats(username)
@@ -365,6 +378,61 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
         if i < len(accounts) - 1:
             logger.info(f"\nWaiting {ACCOUNT_DELAY_SECONDS}s before next account...")
             await asyncio.sleep(ACCOUNT_DELAY_SECONDS)
+    
+    # Send aggregated summary email
+    if not test_mode and email_sender and subscribers and all_results:
+        logger.info("\n" + "=" * 60)
+        logger.info("SENDING DAILY SUMMARY EMAIL")
+        logger.info("=" * 60)
+        
+        # Build account results for summary
+        account_results = []
+        pdf_attachments = []
+        
+        for result_data in all_results:
+            analysis = result_data.get('analysis_result')
+            if not analysis:
+                continue
+            
+            account_results.append({
+                'username': result_data['username'],
+                'folder_url': result_data.get('folder_url', ''),
+                'total_posts': analysis.total_posts,
+                'total_stories': analysis.total_stories,
+                'flagged_count': analysis.flagged_count,
+                'flagged_items': result_data.get('flagged_items', []),
+            })
+            
+            # Collect PDF paths
+            pdf_path = result_data.get('report_paths', {}).get('pdf')
+            if pdf_path and Path(pdf_path).exists():
+                pdf_attachments.append(Path(pdf_path))
+        
+        try:
+            email_sent = email_sender.send_daily_summary(
+                recipients=subscribers,
+                date_str=date_str,
+                account_results=account_results,
+                pdf_attachments=pdf_attachments
+            )
+            if email_sent:
+                logger.info(f"Daily summary sent to {len(subscribers)} subscriber(s) with {len(pdf_attachments)} PDF attachments")
+            else:
+                logger.warning("Daily summary email sending failed")
+        except Exception as e:
+            logger.error(f"Failed to send daily summary: {e}")
+    elif test_mode:
+        logger.info("\nSkipping summary email (test mode)")
+    
+    # Cleanup: Delete temporary report files
+    logger.info("\nCleaning up temporary report files...")
+    for result_data in all_results:
+        for report_path in result_data.get('report_paths', {}).values():
+            if report_path and Path(report_path).exists():
+                try:
+                    Path(report_path).unlink()
+                except:
+                    pass
     
     logger.info("\n" + "=" * 60)
     logger.info("INSTAGRAM MONITOR COMPLETE")

@@ -183,6 +183,32 @@ class GoogleDriveUploader:
         date_folder_id = self._create_folder(date_str, user_folder_id)
         return date_folder_id
     
+    def get_folder_url(self, username: str, date_str: str) -> str:
+        """
+        Get the web URL for a user's date folder
+        
+        Args:
+            username: Instagram username
+            date_str: Date string YYYY-MM-DD
+        
+        Returns:
+            Google Drive folder URL
+        """
+        folder_id = self._get_date_folder(username, date_str)
+        return f"https://drive.google.com/drive/folders/{folder_id}"
+    
+    def get_file_url(self, file_id: str) -> str:
+        """
+        Get the web URL for a file
+        
+        Args:
+            file_id: Google Drive file ID
+        
+        Returns:
+            Google Drive file URL
+        """
+        return f"https://drive.google.com/file/d/{file_id}/view"
+    
     def upload_report(self, local_path: Path, username: str, date_str: str) -> Optional[str]:
         """
         Upload a report file directly to the date folder

@@ -191,6 +191,229 @@ class EmailSender:
         except Exception as e:
             logger.error(f"SMTP connection test failed: {e}")
             return False
+    
+    def send_daily_summary(
+        self,
+        recipients: List[str],
+        date_str: str,
+        account_results: List[Dict[str, Any]],
+        pdf_attachments: List[Path] = None
+    ) -> bool:
+        """
+        Send aggregated daily summary email with all flagged content
+        
+        Args:
+            recipients: List of recipient email addresses
+            date_str: Date string YYYY-MM-DD
+            account_results: List of dicts with keys:
+                - username: Instagram username
+                - folder_url: Google Drive folder URL
+                - total_posts: Number of posts analyzed
+                - total_stories: Number of stories analyzed
+                - flagged_count: Number of flagged items
+                - flagged_items: List of flagged content dicts with:
+                    - type: 'post' or 'story'
+                    - url: Instagram URL
+                    - reason: Why it was flagged
+                    - gdrive_url: Google Drive archive URL
+                    - media_description: AI analysis
+            pdf_attachments: List of PDF report paths to attach
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not recipients:
+            logger.warning("No recipients specified, skipping email")
+            return False
+        
+        subject = f"Instagram Monitor Daily Summary - {date_str}"
+        
+        # Build HTML email
+        html_content = self._build_summary_html(date_str, account_results)
+        
+        try:
+            # Create message with mixed type to support multiple attachments
+            msg = MIMEMultipart('mixed')
+            msg['Subject'] = subject
+            msg['From'] = f"{self.from_name} <{self.from_email}>"
+            msg['To'] = ', '.join(recipients)
+            
+            # Add HTML body
+            html_part = MIMEText(html_content, 'html', 'utf-8')
+            msg.attach(html_part)
+            
+            # Attach all PDFs
+            if pdf_attachments:
+                for pdf_path in pdf_attachments:
+                    if pdf_path and pdf_path.exists():
+                        with open(pdf_path, 'rb') as f:
+                            pdf_part = MIMEBase('application', 'pdf')
+                            pdf_part.set_payload(f.read())
+                            encoders.encode_base64(pdf_part)
+                            pdf_part.add_header(
+                                'Content-Disposition',
+                                f'attachment; filename="{pdf_path.name}"'
+                            )
+                            msg.attach(pdf_part)
+                            logger.debug(f"Attached PDF: {pdf_path.name}")
+            
+            # Send email
+            self._send_via_smtp(msg, recipients)
+            
+            logger.info(f"Daily summary sent to {len(recipients)} recipient(s)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to send daily summary: {e}")
+            return False
+    
+    def _build_summary_html(self, date_str: str, account_results: List[Dict[str, Any]]) -> str:
+        """Build HTML content for daily summary email"""
+        
+        # Count totals
+        total_accounts = len(account_results)
+        total_flagged = sum(r.get('flagged_count', 0) for r in account_results)
+        total_posts = sum(r.get('total_posts', 0) for r in account_results)
+        total_stories = sum(r.get('total_stories', 0) for r in account_results)
+        
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
+        .container {{ max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }}
+        .header h1 {{ margin: 0 0 10px 0; font-size: 24px; }}
+        .header .date {{ opacity: 0.9; font-size: 16px; }}
+        .stats {{ display: flex; gap: 20px; padding: 20px 30px; background: #fafafa; border-bottom: 1px solid #eee; }}
+        .stat {{ text-align: center; flex: 1; }}
+        .stat-value {{ font-size: 28px; font-weight: bold; color: #333; }}
+        .stat-label {{ font-size: 12px; color: #666; text-transform: uppercase; }}
+        .stat-value.flagged {{ color: #e53e3e; }}
+        .section {{ padding: 20px 30px; }}
+        .section-title {{ font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 8px; }}
+        .account {{ background: #f8f9fa; border-radius: 6px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #667eea; }}
+        .account-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }}
+        .account-name {{ font-weight: 600; font-size: 16px; color: #333; }}
+        .account-name a {{ color: #667eea; text-decoration: none; }}
+        .account-stats {{ font-size: 13px; color: #666; }}
+        .drive-link {{ display: inline-block; background: #4285f4; color: white !important; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; margin-top: 8px; }}
+        .flagged-section {{ background: #fff5f5; border-left-color: #e53e3e; }}
+        .flagged-item {{ background: white; border: 1px solid #fed7d7; border-radius: 4px; padding: 12px; margin-top: 10px; }}
+        .flagged-badge {{ background: #e53e3e; color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
+        .flagged-reason {{ margin: 8px 0; font-size: 14px; color: #333; }}
+        .flagged-description {{ font-size: 13px; color: #666; margin: 8px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }}
+        .flagged-links {{ display: flex; gap: 10px; margin-top: 8px; }}
+        .flagged-links a {{ font-size: 12px; color: #667eea; text-decoration: none; }}
+        .no-flagged {{ color: #38a169; font-style: italic; }}
+        .footer {{ padding: 20px 30px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid #eee; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Instagram Monitor Daily Summary</h1>
+            <div class="date">{date_str}</div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value">{total_accounts}</div>
+                <div class="stat-label">Accounts</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">{total_posts}</div>
+                <div class="stat-label">Posts</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">{total_stories}</div>
+                <div class="stat-label">Stories</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value flagged">{total_flagged}</div>
+                <div class="stat-label">Flagged</div>
+            </div>
+        </div>
+"""
+        
+        # Accounts section
+        html += '<div class="section"><div class="section-title">Accounts Analyzed</div>'
+        
+        for result in account_results:
+            username = result.get('username', 'unknown')
+            folder_url = result.get('folder_url', '')
+            posts = result.get('total_posts', 0)
+            stories = result.get('total_stories', 0)
+            flagged = result.get('flagged_count', 0)
+            
+            html += f"""
+            <div class="account">
+                <div class="account-header">
+                    <span class="account-name">
+                        <a href="https://instagram.com/{username}" target="_blank">@{username}</a>
+                    </span>
+                    <span class="account-stats">{posts} posts, {stories} stories{f', <span style="color:#e53e3e;font-weight:600">{flagged} flagged</span>' if flagged else ''}</span>
+                </div>
+                {f'<a class="drive-link" href="{folder_url}" target="_blank">📁 View in Google Drive</a>' if folder_url else ''}
+            </div>
+"""
+        
+        html += '</div>'
+        
+        # Flagged content section
+        html += '<div class="section"><div class="section-title">Flagged Content</div>'
+        
+        any_flagged = False
+        for result in account_results:
+            flagged_items = result.get('flagged_items', [])
+            if not flagged_items:
+                continue
+            
+            any_flagged = True
+            username = result.get('username', 'unknown')
+            
+            html += f'<div class="account flagged-section"><div class="account-name">@{username}</div>'
+            
+            for item in flagged_items:
+                item_type = item.get('type', 'post').upper()
+                reason = item.get('reason', 'No reason provided')
+                description = item.get('media_description', '')
+                instagram_url = item.get('url', '')
+                gdrive_url = item.get('gdrive_url', '')
+                
+                html += f"""
+                <div class="flagged-item">
+                    <span class="flagged-badge">{item_type}</span>
+                    <div class="flagged-reason"><strong>Reason:</strong> {reason}</div>
+                    {f'<div class="flagged-description">{description[:500]}{"..." if len(description) > 500 else ""}</div>' if description else ''}
+                    <div class="flagged-links">
+                        {f'<a href="{instagram_url}" target="_blank">🔗 View on Instagram</a>' if instagram_url else ''}
+                        {f'<a href="{gdrive_url}" target="_blank">📁 View Archive</a>' if gdrive_url else ''}
+                    </div>
+                </div>
+"""
+            
+            html += '</div>'
+        
+        if not any_flagged:
+            html += '<p class="no-flagged">✓ No flagged content found today</p>'
+        
+        html += '</div>'
+        
+        # Footer
+        html += """
+        <div class="footer">
+            Generated by Instagram Monitor<br>
+            Full PDF reports are attached to this email
+        </div>
+    </div>
+</body>
+</html>
+"""
+        
+        return html
 
 
 def load_subscribers(filepath: str = "subscribers.json") -> List[str]:
