@@ -387,7 +387,7 @@ class EmailSender:
                 <div class="flagged-item">
                     <span class="flagged-badge">{item_type}</span>
                     <div class="flagged-reason"><strong>Reason:</strong> {reason}</div>
-                    {f'<div class="flagged-description">{description[:500]}{"..." if len(description) > 500 else ""}</div>' if description else ''}
+                    {f'<div class="flagged-description">{description}</div>' if description else ''}
                     <div class="flagged-links">
                         {f'<a href="{instagram_url}" target="_blank">🔗 View on Instagram</a>' if instagram_url else ''}
                         {f'<a href="{gdrive_url}" target="_blank">📁 View Archive</a>' if gdrive_url else ''}
