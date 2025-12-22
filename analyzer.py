@@ -180,6 +180,22 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                     except Exception as e:
                         logger.warning(f"    ↳ Failed to upload to Google Drive: {e}")
             
+            # Upload story screenshot if available
+            gdrive_screenshot_id = None
+            if post.is_story and post.screenshot_path and post.screenshot_path.exists():
+                if self.gdrive_uploader:
+                    try:
+                        gdrive_screenshot_id = self.gdrive_uploader.upload_file(
+                            local_path=post.screenshot_path,
+                            username=result.profile.username,
+                            content_type="screenshot",
+                            date_str=date_str
+                        )
+                        if gdrive_screenshot_id:
+                            logger.info(f"    ↳ Uploaded screenshot to Google Drive")
+                    except Exception as e:
+                        logger.warning(f"    ↳ Failed to upload screenshot: {e}")
+            
             analyzed_posts.append({
                 "index": i,
                 "shortcode": post.shortcode,
@@ -192,6 +208,7 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 "media_description": description,
                 "media_path": str(post.media_path) if post.media_path else None,
                 "gdrive_file_id": gdrive_file_id,
+                "gdrive_screenshot_id": gdrive_screenshot_id,
             })
         
         # Step 2: Run comprehensive analysis

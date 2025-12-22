@@ -23,7 +23,7 @@ temp_report_*.pdf
 
 # Temporary downloads
 temp_downloads/
-templates/
+
 
 # IDE
 .vscode/
