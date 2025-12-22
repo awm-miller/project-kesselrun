@@ -211,18 +211,18 @@ async def process_account(
         )
         result_data['report_paths'] = report_paths
         
-        # Upload reports to Google Drive (directly in date folder)
+        # Upload PDF report to Google Drive (skip HTML)
         if not test_mode and gdrive_uploader:
             try:
-                for report_type, report_path in report_paths.items():
-                    if report_path:
-                        gdrive_uploader.upload_report(
-                            local_path=Path(report_path),
-                            username=username,
-                            date_str=date_str
-                        )
+                pdf_path = report_paths.get('pdf')
+                if pdf_path:
+                    gdrive_uploader.upload_report(
+                        local_path=Path(pdf_path),
+                        username=username,
+                        date_str=date_str
+                    )
             except Exception as e:
-                logger.error(f"Failed to upload reports to Google Drive: {e}")
+                logger.error(f"Failed to upload PDF to Google Drive: {e}")
         
     except Exception as e:
         logger.error(f"Report generation failed: {e}")

@@ -100,7 +100,7 @@ class ReportGenerator:
             html_content = template.render(**data)
             
             # Save HTML file
-            output_path = Path(f"temp_report_{data['username']}_{data['date']}.html")
+            output_path = Path(f"report_{data['username']}_{data['date']}.html")
             output_path.write_text(html_content, encoding='utf-8')
             
             logger.info(f"Generated HTML report: {output_path}")
@@ -124,7 +124,7 @@ class ReportGenerator:
                 html_content = html_path.read_text(encoding='utf-8')
             
             # Generate PDF
-            output_path = Path(f"temp_report_{data['username']}_{data['date']}.pdf")
+            output_path = Path(f"report_{data['username']}_{data['date']}.pdf")
             
             HTML(string=html_content, base_url=str(self.templates_dir)).write_pdf(
                 output_path,
@@ -150,7 +150,7 @@ class ReportGenerator:
             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
             from reportlab.lib import colors
             
-            output_path = Path(f"temp_report_{data['username']}_{data['date']}.pdf")
+            output_path = Path(f"report_{data['username']}_{data['date']}.pdf")
             doc = SimpleDocTemplate(str(output_path), pagesize=A4)
             styles = getSampleStyleSheet()
             story = []
