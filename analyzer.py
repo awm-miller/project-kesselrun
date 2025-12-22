@@ -182,7 +182,7 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 "shortcode": post.shortcode,
                 "url": post.url,
                 "date": post.date.isoformat(),
-                "caption": post.caption[:500] if post.caption else "",
+                "caption": post.caption if post.caption else "",
                 "is_video": post.is_video,
                 "is_story": post.is_story,
                 "likes": post.likes,
