@@ -21,10 +21,6 @@ from config import (
     TEMP_DIR,
     COOKIES_FILE,
     STORY_DELAY_SECONDS,
-    PROXY_ENABLED,
-    MULLVAD_ACCOUNT,
-    MULLVAD_PROXY_SERVER,
-    MULLVAD_PROXY_PORT,
 )
 
 logger = logging.getLogger("scraper")
@@ -80,25 +76,7 @@ class InstagramScraper:
         )
         self._logged_in = False
         self.download_dir = Path(TEMP_DIR)
-        
-        # Configure SOCKS5 proxy if enabled
-        if PROXY_ENABLED:
-            self._setup_proxy()
     
-    def _setup_proxy(self):
-        """Configure Mullvad SOCKS5 proxy for all requests"""
-        proxy_url = f"socks5://{MULLVAD_ACCOUNT}:m@{MULLVAD_PROXY_SERVER}:{MULLVAD_PROXY_PORT}"
-        proxies = {
-            'http': proxy_url,
-            'https': proxy_url,
-        }
-        
-        # Get the instaloader session and configure proxy
-        session = self.loader.context._session
-        session.proxies.update(proxies)
-        
-        logger.info(f"Proxy enabled: {MULLVAD_PROXY_SERVER}:{MULLVAD_PROXY_PORT}")
-        
     def login(self) -> bool:
         """Login to Instagram (required for stories)"""
         # Try cookie-based auth first
