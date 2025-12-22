@@ -385,10 +385,15 @@ class EmailSender:
                 description = item.get('media_description', '')
                 instagram_url = item.get('url', '')
                 gdrive_url = item.get('gdrive_url', '')
+                # Format date - show YYYY-MM-DD HH:MM
+                item_date = item.get('date', '')
+                if item_date and len(item_date) >= 16:
+                    item_date = item_date[:16].replace('T', ' ')
                 
                 html += f"""
                 <div class="flagged-item">
                     <span class="flagged-badge">{item_type}</span>
+                    {f'<span style="color:#a0a0a0;font-size:12px;margin-left:10px;">{item_date}</span>' if item_date else ''}
                     <div class="flagged-reason"><strong>Reason:</strong> {reason}</div>
                     {f'<div class="flagged-description">{description}</div>' if description else ''}
                     <div class="flagged-links">

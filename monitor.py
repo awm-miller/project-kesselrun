@@ -242,6 +242,7 @@ async def process_account(
                 'reason': post.get('flag_reason', ''),
                 'gdrive_url': gdrive_url,
                 'media_description': post.get('media_description', ''),
+                'date': post.get('date', ''),
             })
     
     # Step 7: Update state tracker
