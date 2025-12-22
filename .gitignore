@@ -10,10 +10,20 @@ ENV/
 
 # Environment and secrets
 .env
+.env.example
 cookies.txt
+accounts.json
+serviceaccount.json
+subscribers.json
+
+# State and data
+state.json
+temp_report_*.html
+temp_report_*.pdf
 
 # Temporary downloads
 temp_downloads/
+templates/
 
 # IDE
 .vscode/

@@ -1,6 +1,16 @@
 {
   "accounts": [
-    {"username": "abo_wadie_alkassas", "include_stories": true}
+    {"username": "broseph_stalingram", "include_stories": true},
+    {"username": "caerdyddstudents4palestine", "include_stories": true},
+    {"username": "cityactionforpalestine", "include_stories": true},
+    {"username": "eu_jps", "include_stories": false},
+    {"username": "gu_jps", "include_stories": false},
+    {"username": "leedsstudents4palestine", "include_stories": false},
+    {"username": "y.f.f.p", "include_stories": false},
+    {"username": "mdxpalsoc", "include_stories": false},
+    {"username": "absocforjustice", "include_stories": false},
+    {"username": "openuni_palfriends", "include_stories": false},
+    {"username": "oxschools4pal", "include_stories": false},
+    {"username": "qmulaction4pal", "include_stories": false}
   ]
 }
-

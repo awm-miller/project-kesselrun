@@ -1,0 +1,33 @@
+[Unit]
+Description=Instagram Monitor Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/instagram_monitor
+Environment="PATH=/opt/instagram_monitor/venv/bin"
+ExecStart=/opt/instagram_monitor/venv/bin/python /opt/instagram_monitor/monitor.py
+StandardOutput=append:/var/log/instagram_monitor/monitor.log
+StandardError=append:/var/log/instagram_monitor/monitor.log
+
+[Install]
+WantedBy=multi-user.target
+
+# Installation instructions:
+# 1. Copy this file to /etc/systemd/system/
+#    sudo cp instagram-monitor.service /etc/systemd/system/
+#
+# 2. Reload systemd
+#    sudo systemctl daemon-reload
+#
+# 3. Enable the service (optional - for use with timer)
+#    sudo systemctl enable instagram-monitor.service
+#
+# 4. Test manual run:
+#    sudo systemctl start instagram-monitor.service
+#    sudo systemctl status instagram-monitor.service
+#
+# 5. For scheduled runs, create a timer file or use cron instead
+

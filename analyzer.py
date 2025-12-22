@@ -48,7 +48,7 @@ Be factual and objective."""
 2. DESCRIBE key visual content: people, symbols, flags, text overlays, locations, gestures
 3. FLAG any content that is antisemitic, anti-Zionist, or in support of proscribed terrorist organisations (Hamas, Hezbollah, etc)
 
-Be factual and objective. Provide a complete analysis."""
+Be factual and objective. Provide a complete analysis.Include the FULL TRANSCRIPT and then your analysis."""
 
     # Prompt for final analysis
     ANALYSIS_PROMPT = """You are a forensic analyst examining the Instagram activity of @{username}.
@@ -68,7 +68,7 @@ Flag only posts that are CLEARLY problematic - not just political opinions. Look
 - Antisemitic, anti-Zionist, or pro-terrorist content
 - Support for proscribed terrorist organisations (Hamas, Hezbollah, etc)
 
-Limit to the TOP 50 MOST controversial posts maximum. Do NOT flag normal political opinions or criticism.
+Do NOT flag normal political opinions or criticism.
 
 POSTS DATA:
 {posts_data}
@@ -82,7 +82,13 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
   ]
 }}"""
 
-    def __init__(self):
+    def __init__(self, gdrive_uploader=None):
+        """
+        Initialize the analyzer
+        
+        Args:
+            gdrive_uploader: Optional GoogleDriveUploader instance for uploading media during analysis
+        """
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY not configured")
         
@@ -95,10 +101,21 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
             )
         )
         self.vision_model = genai.GenerativeModel(GEMINI_MODEL)
+        self.gdrive_uploader = gdrive_uploader
         logger.info(f"Analyzer initialized with {GEMINI_MODEL}")
     
-    def analyze_scrape_result(self, result: ScrapeResult) -> AnalysisResult:
-        """Analyze a complete scrape result"""
+    def analyze_scrape_result(self, result: ScrapeResult, date_str: str = None) -> AnalysisResult:
+        """
+        Analyze a complete scrape result
+        
+        Args:
+            result: ScrapeResult from scraper
+            date_str: Date string (YYYY-MM-DD) for Google Drive folder structure
+        """
+        from datetime import datetime
+        if date_str is None:
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            
         if result.error:
             return AnalysisResult(
                 username=result.profile.username,
@@ -123,19 +140,39 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 total_stories=0,
             )
         
-        # Step 1: Analyze each piece of media
-        logger.info(f"  Step 1: Analyzing {len(all_content)} media items...")
+        # Step 1: Analyze each piece of media AND upload to Google Drive
+        upload_msg = " + uploading to Google Drive" if self.gdrive_uploader else ""
+        logger.info(f"  Step 1: Analyzing {len(all_content)} media items{upload_msg}...")
         analyzed_posts = []
         
         for i, post in enumerate(all_content):
-            logger.info(f"  [{i+1}/{len(all_content)}] Analyzing {'video' if post.is_video else 'image'}...")
+            media_type = 'video' if post.is_video else 'image'
+            content_type = 'STORIES' if post.is_story else 'POSTS'
+            logger.info(f"  [{i+1}/{len(all_content)}] Analyzing {media_type}...")
             
             description = ""
+            gdrive_file_id = None
+            
             if post.media_path and post.media_path.exists():
+                # Analyze with Gemini
                 if post.is_video:
                     description = self._analyze_video(post.media_path)
                 else:
                     description = self._analyze_image(post.media_path)
+                
+                # Upload to Google Drive simultaneously
+                if self.gdrive_uploader:
+                    try:
+                        gdrive_file_id = self.gdrive_uploader.upload_file(
+                            local_path=post.media_path,
+                            username=result.profile.username,
+                            content_type=content_type,
+                            date_str=date_str
+                        )
+                        if gdrive_file_id:
+                            logger.info(f"    ↳ Uploaded to Google Drive: {post.media_path.name}")
+                    except Exception as e:
+                        logger.warning(f"    ↳ Failed to upload to Google Drive: {e}")
             
             analyzed_posts.append({
                 "index": i,
@@ -147,6 +184,8 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 "is_story": post.is_story,
                 "likes": post.likes,
                 "media_description": description,
+                "media_path": str(post.media_path) if post.media_path else None,
+                "gdrive_file_id": gdrive_file_id,
             })
         
         # Step 2: Run comprehensive analysis

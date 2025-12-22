@@ -1,0 +1,22 @@
+[Unit]
+Description=Kessel Run Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/instagram_monitor
+Environment="PATH=/opt/instagram_monitor/venv/bin"
+EnvironmentFile=/opt/instagram_monitor/.env
+ExecStart=/opt/instagram_monitor/venv/bin/python /opt/instagram_monitor/dashboard/app.py
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=append:/var/log/instagram_monitor/dashboard.log
+StandardError=append:/var/log/instagram_monitor/dashboard.log
+
+[Install]
+WantedBy=multi-user.target
+
