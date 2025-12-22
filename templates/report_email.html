@@ -240,7 +240,7 @@
                     <span class="post-type">{{ 'Video' if post.is_video else 'Image' }}</span>
                     <span class="flagged-badge">FLAGGED</span>
                 </span>
-                <span class="post-date">{{ post.date[:10] }}</span>
+                <span class="post-date">{{ post.date[:16].replace('T', ' ') }}</span>
             </div>
             <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
             {% if post.caption %}
@@ -263,7 +263,7 @@
                     <span class="post-type">Story - {{ 'Video' if story.is_video else 'Image' }}</span>
                     <span class="flagged-badge">FLAGGED</span>
                 </span>
-                <span class="post-date">{{ story.date[:10] }}</span>
+                <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ story.flag_reason }}
@@ -287,7 +287,7 @@
                     <span class="post-type">{{ 'Video' if post.is_video else 'Image' }}</span>
                     {% if post.flagged %}<span class="flagged-badge">FLAGGED</span>{% endif %}
                 </span>
-                <span class="post-date">{{ post.date[:10] }} - {{ post.likes }} likes</span>
+                <span class="post-date">{{ post.date[:16].replace('T', ' ') }} - {{ post.likes }} likes</span>
             </div>
             <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
             {% if post.caption %}
@@ -317,7 +317,7 @@
                     <span class="post-type">Story - {{ 'Video' if story.is_video else 'Image' }}</span>
                     {% if story.flagged %}<span class="flagged-badge">FLAGGED</span>{% endif %}
                 </span>
-                <span class="post-date">{{ story.date[:10] }}</span>
+                <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
             {% if story.media_description %}
             <div class="post-description">
