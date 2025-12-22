@@ -93,3 +93,4 @@ echo "   ssh $VPS_HOST 'sudo -u www-data $REMOTE_DIR/venv/bin/python $REMOTE_DIR
 echo ""
 echo "========================================="
 
+

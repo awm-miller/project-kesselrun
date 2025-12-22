@@ -600,3 +600,4 @@ class ReportGenerator:
         """Default PDF template (simpler version of email template)"""
         return self._default_email_template()  # Can use same template for both
 
+
