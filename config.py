@@ -18,6 +18,12 @@ GEMINI_MODEL = "gemini-2.0-flash"
 ACCOUNT_DELAY_SECONDS = 30
 STORY_DELAY_SECONDS = 60  # Pause before scraping stories
 
+# Proxy Configuration (Mullvad SOCKS5)
+PROXY_ENABLED = os.getenv("PROXY_ENABLED", "true").lower() == "true"
+MULLVAD_ACCOUNT = os.getenv("MULLVAD_ACCOUNT", "8250455157402818")
+MULLVAD_PROXY_SERVER = os.getenv("MULLVAD_PROXY_SERVER", "se-sto-wg-socks5-001.relays.mullvad.net")
+MULLVAD_PROXY_PORT = int(os.getenv("MULLVAD_PROXY_PORT", "1080"))
+
 # Paths
 ACCOUNTS_FILE = "accounts.json"
 RESULTS_DIR = "results"
