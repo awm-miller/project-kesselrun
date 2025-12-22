@@ -16,6 +16,7 @@ GEMINI_MODEL = "gemini-2.0-flash"
 
 # Anti-bot detection
 ACCOUNT_DELAY_SECONDS = 30
+STORY_DELAY_SECONDS = 60  # Pause before scraping stories
 
 # Paths
 ACCOUNTS_FILE = "accounts.json"

@@ -11,11 +11,14 @@ from typing import List, Optional
 
 import instaloader
 
+import time
+
 from config import (
     INSTAGRAM_USERNAME,
     INSTAGRAM_PASSWORD,
     TEMP_DIR,
     COOKIES_FILE,
+    STORY_DELAY_SECONDS,
 )
 
 logger = logging.getLogger("scraper")
@@ -197,6 +200,10 @@ class InstagramScraper:
             stories = []
             if include_stories:
                 if self._logged_in:
+                    # Wait before scraping stories (anti-bot detection)
+                    logger.info(f"  Waiting {STORY_DELAY_SECONDS}s before stories...")
+                    time.sleep(STORY_DELAY_SECONDS)
+                    
                     # Re-fetch profile with authenticated loader for stories
                     try:
                         auth_profile = instaloader.Profile.from_username(self.loader.context, username)
