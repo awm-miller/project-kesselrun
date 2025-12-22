@@ -2,35 +2,41 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'IBM Plex Mono', monospace;
             line-height: 1.6;
-            color: #333;
+            color: #3eb489;
+            background: #0a0a0a;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #0a0a0a;
+            color: #3eb489;
             padding: 30px;
-            border-radius: 10px;
+            border: 1px solid #3eb489;
+            border-radius: 8px;
             margin-bottom: 30px;
         }
         .header h1 {
             margin: 0;
-            font-size: 28px;
+            font-size: 24px;
+            font-weight: 600;
         }
         .header .subtitle {
-            opacity: 0.9;
+            opacity: 0.7;
             margin-top: 10px;
+            font-size: 14px;
         }
         .profile-info {
-            background: #f8f9fa;
+            background: #1a1a1a;
             padding: 20px;
-            border-radius: 8px;
+            border-radius: 6px;
             margin-bottom: 20px;
+            border-left: 3px solid #3eb489;
         }
         .profile-info table {
             width: 100%;
@@ -38,60 +44,70 @@
         }
         .profile-info td {
             padding: 8px;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid #2a2a2a;
+            color: #888;
         }
         .profile-info td:first-child {
-            font-weight: bold;
+            font-weight: 500;
             width: 150px;
+            color: #3eb489;
         }
         .summary {
-            background: #e7f3ff;
+            background: #1a1a1a;
             padding: 20px;
-            border-left: 4px solid #2196F3;
-            border-radius: 5px;
+            border-left: 3px solid #3eb489;
+            border-radius: 4px;
             margin-bottom: 30px;
+            color: #ccc;
         }
         .stats {
             display: flex;
-            justify-content: space-around;
-            margin-bottom: 30px;
+            justify-content: center;
+            gap: 60px;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: #0a0a0a;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
         }
         .stat-box {
             text-align: center;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            flex: 1;
-            margin: 0 10px;
+            min-width: 80px;
         }
         .stat-box .number {
-            font-size: 36px;
-            font-weight: bold;
-            color: #667eea;
+            font-size: 32px;
+            font-weight: 600;
+            color: #3eb489;
         }
         .stat-box .label {
-            color: #666;
+            color: #6b6b6b;
             margin-top: 5px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         .section {
             margin-bottom: 30px;
         }
         .section h2 {
-            color: #1a1a1a;
-            border-bottom: 2px solid #667eea;
+            color: #3eb489;
+            border-bottom: 1px solid #2a2a2a;
             padding-bottom: 10px;
             margin-bottom: 20px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         .post {
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
             padding: 15px;
             margin-bottom: 15px;
         }
         .post.flagged {
-            border-left: 4px solid #dc3545;
-            background: #fff5f5;
+            border-left: 3px solid #ff6b6b;
+            background: #1a1212;
         }
         .post-header {
             display: flex;
@@ -99,62 +115,77 @@
             margin-bottom: 10px;
         }
         .post-date {
-            color: #666;
-            font-size: 14px;
+            color: #6b6b6b;
+            font-size: 12px;
         }
         .post-type {
             display: inline-block;
             padding: 3px 8px;
-            background: #e7f3ff;
-            color: #2196F3;
-            border-radius: 4px;
-            font-size: 12px;
+            background: #0a0a0a;
+            color: #3eb489;
+            border-radius: 3px;
+            font-size: 11px;
+            border: 1px solid #3eb489;
         }
         .flagged-badge {
             display: inline-block;
             padding: 3px 8px;
-            background: #dc3545;
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
+            background: #ff6b6b;
+            color: #0a0a0a;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
             margin-left: 5px;
+            text-transform: uppercase;
         }
         .post-caption {
             margin: 10px 0;
             font-style: italic;
+            color: #888;
         }
         .post-description {
             margin: 10px 0;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 5px;
+            padding: 12px;
+            background: #0a0a0a;
+            border-radius: 4px;
+            border-left: 2px solid #3eb489;
+            color: #888;
+            font-size: 13px;
         }
         .flag-reason {
             margin-top: 10px;
-            padding: 10px;
-            background: #fff3cd;
-            border-left: 3px solid #ffc107;
+            padding: 12px;
+            background: #1a1212;
+            border-left: 3px solid #ff6b6b;
             border-radius: 3px;
+            color: #ccc;
         }
         .footer {
             margin-top: 40px;
             padding-top: 20px;
-            border-top: 2px solid #dee2e6;
+            border-top: 1px solid #2a2a2a;
             text-align: center;
-            color: #666;
-            font-size: 14px;
+            color: #4a4a4a;
+            font-size: 11px;
+        }
+        a {
+            color: #3eb489;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Instagram Monitor Report</h1>
+        <h1>Kessel Run Report</h1>
         <div class="subtitle">@{{ username }} - {{ date }}</div>
         <div class="subtitle">Generated: {{ generated_at }}</div>
     </div>
 
     <div class="profile-info">
-        <h3>Profile Information</h3>
+        <h3 style="color: #3eb489; margin-top: 0;">Profile Information</h3>
         <table>
             <tr>
                 <td>Username</td>
@@ -180,22 +211,22 @@
     </div>
 
     <div class="summary">
-        <h3>Analysis Summary</h3>
+        <h3 style="color: #3eb489; margin-top: 0;">Analysis Summary</h3>
         <p>{{ summary }}</p>
     </div>
 
     <div class="stats">
         <div class="stat-box">
             <div class="number">{{ stats.total_posts }}</div>
-            <div class="label">Posts Analyzed</div>
+            <div class="label">Posts</div>
         </div>
         <div class="stat-box">
             <div class="number">{{ stats.total_stories }}</div>
-            <div class="label">Stories Analyzed</div>
+            <div class="label">Stories</div>
         </div>
         <div class="stat-box">
-            <div class="number">{{ total_flagged }}</div>
-            <div class="label">Flagged Content</div>
+            <div class="number" style="color: #ff6b6b;">{{ total_flagged }}</div>
+            <div class="label">Flagged</div>
         </div>
     </div>
 
@@ -304,8 +335,10 @@
     {% endif %}
 
     <div class="footer">
-        <p>Instagram Monitor - Automated Daily Report</p>
-        <p>This is an automated report. Please do not reply to this email.</p>
+        <p>Generated by Kessel Run</p>
+        <p>Completed in under 12 parsecs!</p>
+        <p>© Bothan Labs 2025</p>
+        <p><em>AI can make mistakes</em></p>
     </div>
 </body>
 </html>
