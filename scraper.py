@@ -21,6 +21,7 @@ from config import (
     TEMP_DIR,
     COOKIES_FILE,
     STORY_DELAY_SECONDS,
+    STORY_ITEM_DELAY_SECONDS,
 )
 
 logger = logging.getLogger("scraper")
@@ -298,6 +299,10 @@ class InstagramScraper:
         try:
             for story in self.loader.get_stories(userids=[profile.userid]):
                 for i, item in enumerate(story.get_items()):
+                    # Wait between story items (anti-bot)
+                    if i > 0:
+                        time.sleep(STORY_ITEM_DELAY_SECONDS)
+                        
                     try:
                         is_video = item.is_video
                         media_url = item.video_url if is_video else item.url
