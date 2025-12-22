@@ -11,17 +11,11 @@ from typing import List, Optional
 
 import instaloader
 
-import time
-
-import requests
-
 from config import (
     INSTAGRAM_USERNAME,
     INSTAGRAM_PASSWORD,
     TEMP_DIR,
     COOKIES_FILE,
-    STORY_DELAY_SECONDS,
-    STORY_ITEM_DELAY_SECONDS,
 )
 
 logger = logging.getLogger("scraper")
@@ -39,7 +33,6 @@ class InstagramPost:
     is_story: bool = False
     media_path: Optional[Path] = None
     video_url: Optional[str] = None
-    screenshot_path: Optional[Path] = None
     
 
 @dataclass
@@ -78,7 +71,7 @@ class InstagramScraper:
         )
         self._logged_in = False
         self.download_dir = Path(TEMP_DIR)
-    
+        
     def login(self) -> bool:
         """Login to Instagram (required for stories)"""
         # Try cookie-based auth first
@@ -204,10 +197,6 @@ class InstagramScraper:
             stories = []
             if include_stories:
                 if self._logged_in:
-                    # Wait before scraping stories (anti-bot detection)
-                    logger.info(f"  Waiting {STORY_DELAY_SECONDS}s before stories...")
-                    time.sleep(STORY_DELAY_SECONDS)
-                    
                     # Re-fetch profile with authenticated loader for stories
                     try:
                         auth_profile = instaloader.Profile.from_username(self.loader.context, username)
@@ -249,7 +238,7 @@ class InstagramScraper:
         logger.info(f"  Scraping posts (max {max_posts or 'all'})...")
         
         for i, post in enumerate(profile.get_posts()):
-            if max_posts is not None and i >= max_posts:
+            if max_posts and i >= max_posts:
                 break
                 
             try:
@@ -300,10 +289,6 @@ class InstagramScraper:
         try:
             for story in self.loader.get_stories(userids=[profile.userid]):
                 for i, item in enumerate(story.get_items()):
-                    # Wait between story items (anti-bot)
-                    if i > 0:
-                        time.sleep(STORY_ITEM_DELAY_SECONDS)
-                        
                     try:
                         is_video = item.is_video
                         media_url = item.video_url if is_video else item.url
@@ -315,14 +300,9 @@ class InstagramScraper:
                         if not media_path.exists():
                             self._download_media(media_url, media_path)
                         
-                        # Take screenshot of story
-                        story_url = f"https://www.instagram.com/stories/{profile.username}/{item.mediaid}/"
-                        screenshot_path = download_dir / f"story_{item.mediaid}_screenshot.png"
-                        self._screenshot_story(story_url, screenshot_path)
-                        
                         story_post = InstagramPost(
                             shortcode=str(item.mediaid),
-                            url=story_url,
+                            url=f"https://www.instagram.com/stories/{profile.username}/{item.mediaid}/",
                             caption=item.caption or "",
                             date=item.date_utc.replace(tzinfo=timezone.utc),
                             likes=0,  # Stories don't have public like counts
@@ -330,7 +310,6 @@ class InstagramScraper:
                             is_story=True,
                             media_path=media_path if media_path.exists() else None,
                             video_url=item.video_url if is_video else None,
-                            screenshot_path=screenshot_path if screenshot_path.exists() else None,
                         )
                         
                         stories.append(story_post)
@@ -357,65 +336,6 @@ class InstagramScraper:
             return True
         except Exception as e:
             logger.warning(f"  Failed to download {url}: {e}")
-            return False
-    
-    def _screenshot_story(self, story_url: str, output_path: Path) -> bool:
-        """Take a screenshot of an Instagram story showing it was posted"""
-        try:
-            from playwright.sync_api import sync_playwright
-            
-            # Convert cookies.txt to Playwright format
-            cookies = []
-            if Path(COOKIES_FILE).exists():
-                with open(COOKIES_FILE, 'r') as f:
-                    for line in f:
-                        if line.startswith('#') or not line.strip():
-                            continue
-                        parts = line.strip().split('\t')
-                        if len(parts) >= 7:
-                            cookie = {
-                                'name': parts[5],
-                                'value': parts[6],
-                                'domain': parts[0],
-                                'path': parts[2],
-                                'secure': parts[3].lower() == 'true',
-                                'httpOnly': False,
-                            }
-                            if parts[4] != '0':
-                                cookie['expires'] = int(parts[4])
-                            cookies.append(cookie)
-            
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(
-                    viewport={'width': 430, 'height': 932},
-                    user_agent='Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15'
-                )
-                
-                if cookies:
-                    context.add_cookies(cookies)
-                
-                page = context.new_page()
-                page.goto(story_url, wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(3000)
-                
-                # Click "View Story" button if present
-                try:
-                    view_btn = page.locator('text="View story"').first
-                    if view_btn.is_visible(timeout=2000):
-                        view_btn.click()
-                        page.wait_for_timeout(3000)
-                except:
-                    pass
-                
-                page.screenshot(path=str(output_path))
-                browser.close()
-                
-                logger.info(f"    ↳ Screenshot saved: {output_path.name}")
-                return True
-                
-        except Exception as e:
-            logger.warning(f"    Screenshot failed: {e}")
             return False
     
     def cleanup(self, username: str):
