@@ -498,14 +498,14 @@ class ReportGenerator:
             </div>
             <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
             {% if post.caption %}
-            <div class="post-caption">{{ post.caption[:200] }}{% if post.caption|length > 200 %}...{% endif %}</div>
+            <div class="post-caption">{{ post.caption }}</div>
             {% endif %}
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ post.flag_reason }}
             </div>
             {% if post.media_description %}
             <div class="post-description">
-                <strong>AI Analysis:</strong> {{ post.media_description[:300] }}{% if post.media_description|length > 300 %}...{% endif %}
+                <strong>AI Analysis:</strong> {{ post.media_description }}
             </div>
             {% endif %}
         </div>
@@ -524,7 +524,7 @@ class ReportGenerator:
             </div>
             {% if story.media_description %}
             <div class="post-description">
-                <strong>AI Analysis:</strong> {{ story.media_description[:300] }}{% if story.media_description|length > 300 %}...{% endif %}
+                <strong>AI Analysis:</strong> {{ story.media_description }}
             </div>
             {% endif %}
         </div>
@@ -545,11 +545,11 @@ class ReportGenerator:
             </div>
             <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
             {% if post.caption %}
-            <div class="post-caption">{{ post.caption[:200] }}{% if post.caption|length > 200 %}...{% endif %}</div>
+            <div class="post-caption">{{ post.caption }}</div>
             {% endif %}
             {% if post.media_description %}
             <div class="post-description">
-                {{ post.media_description[:300] }}{% if post.media_description|length > 300 %}...{% endif %}
+                {{ post.media_description }}
             </div>
             {% endif %}
             {% if post.flagged %}
@@ -575,7 +575,7 @@ class ReportGenerator:
             </div>
             {% if story.media_description %}
             <div class="post-description">
-                {{ story.media_description[:300] }}{% if story.media_description|length > 300 %}...{% endif %}
+                {{ story.media_description }}
             </div>
             {% endif %}
             {% if story.flagged %}
