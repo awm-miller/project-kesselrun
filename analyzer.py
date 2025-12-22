@@ -36,25 +36,28 @@ class InstagramAnalyzer:
     """Analyzes Instagram content using Gemini 2.0 Flash"""
     
     # Prompt for image analysis
-    IMAGE_PROMPT = """Describe this Instagram image in 2-3 sentences. 
-Do not include any introductory phrases like "Here is an analysis" or "This image shows". Start immediately with the description.
+    IMAGE_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is", "This image shows", "The image depicts", or any other preamble. Begin your response directly with the factual description.
+
+Describe this Instagram image in 2-3 sentences.
 Focus on: people, symbols, flags, text overlays, gestures, locations.
 Specifically highlight any imagery which is antisemitic, anti-Zionist, or in support of proscribed terrorist organisations (Hamas, Hezbollah, etc).
 Be factual and objective."""
 
     # Prompt for video analysis
-    VIDEO_PROMPT = """Analyze this Instagram video comprehensively.
-Do not include any introductory phrases like "Okay, here is the analysis" or "The video shows". Start immediately with the transcript and description.
+    VIDEO_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is the analysis", "The video shows", "This video depicts", or any other preamble. Begin your response directly with the transcript.
+
+Analyze this Instagram video:
 
 1. TRANSCRIBE all speech/audio - include the full transcript
 2. DESCRIBE key visual content: people, symbols, flags, text overlays, locations, gestures
 3. FLAG any content that is antisemitic, anti-Zionist, or in support of proscribed terrorist organisations (Hamas, Hezbollah, etc)
 
-Be factual and objective. Provide a complete analysis. Include the FULL TRANSCRIPT and then your analysis."""
+Be factual and objective. Provide a complete analysis."""
 
     # Prompt for final analysis
-    ANALYSIS_PROMPT = """You are a forensic analyst examining the Instagram activity of @{username}.
-Do not include any conversational filler or introductory phrases.
+    ANALYSIS_PROMPT = """IMPORTANT: Do NOT include any conversational filler, preamble, or phrases like "Okay", "Here is", etc. Start directly with the clinical summary.
+
+You are a forensic analyst examining the Instagram activity of @{username}.
 
 MATERIAL VOLUME: {total_posts} total posts are provided below for analysis.
 Each post has an INDEX number. Use these indices to identify posts.

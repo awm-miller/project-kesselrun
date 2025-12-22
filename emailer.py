@@ -281,34 +281,37 @@ class EmailSender:
 <html>
 <head>
     <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }}
-        .container {{ max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }}
-        .header h1 {{ margin: 0 0 10px 0; font-size: 24px; }}
-        .header .date {{ opacity: 0.9; font-size: 16px; }}
-        .stats {{ display: flex; gap: 20px; padding: 20px 30px; background: #fafafa; border-bottom: 1px solid #eee; }}
-        .stat {{ text-align: center; flex: 1; }}
-        .stat-value {{ font-size: 28px; font-weight: bold; color: #333; }}
-        .stat-label {{ font-size: 12px; color: #666; text-transform: uppercase; }}
-        .stat-value.flagged {{ color: #e53e3e; }}
+        body {{ font-family: 'IBM Plex Mono', monospace; margin: 0; padding: 20px; background: #0a0a0a; color: #3eb489; }}
+        .container {{ max-width: 800px; margin: 0 auto; background: #111111; border-radius: 8px; border: 1px solid #2a2a2a; }}
+        .header {{ background: #0a0a0a; color: #3eb489; padding: 30px; border-radius: 8px 8px 0 0; border-bottom: 1px solid #3eb489; }}
+        .header h1 {{ margin: 0 0 10px 0; font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }}
+        .header .date {{ opacity: 0.7; font-size: 14px; }}
+        .stats {{ display: flex; justify-content: center; gap: 60px; padding: 30px; background: #0a0a0a; border-bottom: 1px solid #2a2a2a; }}
+        .stat {{ text-align: center; min-width: 80px; }}
+        .stat-value {{ font-size: 32px; font-weight: 600; color: #3eb489; }}
+        .stat-label {{ font-size: 11px; color: #6b6b6b; text-transform: uppercase; letter-spacing: 1px; margin-top: 5px; }}
+        .stat-value.flagged {{ color: #ff6b6b; }}
         .section {{ padding: 20px 30px; }}
-        .section-title {{ font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 8px; }}
-        .account {{ background: #f8f9fa; border-radius: 6px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #667eea; }}
-        .account-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }}
-        .account-name {{ font-weight: 600; font-size: 16px; color: #333; }}
-        .account-name a {{ color: #667eea; text-decoration: none; }}
-        .account-stats {{ font-size: 13px; color: #666; }}
-        .drive-link {{ display: inline-block; background: #4285f4; color: white !important; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-size: 13px; margin-top: 8px; }}
-        .flagged-section {{ background: #fff5f5; border-left-color: #e53e3e; }}
-        .flagged-item {{ background: white; border: 1px solid #fed7d7; border-radius: 4px; padding: 12px; margin-top: 10px; }}
-        .flagged-badge {{ background: #e53e3e; color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
-        .flagged-reason {{ margin: 8px 0; font-size: 14px; color: #333; }}
-        .flagged-description {{ font-size: 13px; color: #666; margin: 8px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }}
-        .flagged-links {{ display: flex; gap: 10px; margin-top: 8px; }}
-        .flagged-links a {{ font-size: 12px; color: #667eea; text-decoration: none; }}
-        .no-flagged {{ color: #38a169; font-style: italic; }}
-        .footer {{ padding: 20px 30px; text-align: center; color: #888; font-size: 12px; border-top: 1px solid #eee; }}
+        .section-title {{ font-size: 14px; font-weight: 600; margin-bottom: 15px; color: #3eb489; border-bottom: 1px solid #2a2a2a; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }}
+        .account {{ background: #1a1a1a; border-radius: 4px; padding: 15px; margin-bottom: 12px; border-left: 3px solid #3eb489; }}
+        .account-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }}
+        .account-name {{ font-weight: 500; font-size: 14px; color: #3eb489; }}
+        .account-name a {{ color: #3eb489; text-decoration: none; }}
+        .account-name a:hover {{ text-decoration: underline; }}
+        .account-stats {{ font-size: 12px; color: #6b6b6b; }}
+        .drive-link {{ display: inline-block; background: #3eb489; color: #0a0a0a !important; padding: 6px 12px; border-radius: 3px; text-decoration: none; font-size: 12px; margin-top: 8px; font-weight: 500; }}
+        .flagged-section {{ background: #1a1212; border-left-color: #ff6b6b; }}
+        .flagged-item {{ background: #0a0a0a; border: 1px solid #3a2a2a; border-radius: 4px; padding: 12px; margin-top: 10px; }}
+        .flagged-badge {{ background: #ff6b6b; color: #0a0a0a; padding: 2px 8px; border-radius: 2px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }}
+        .flagged-reason {{ margin: 10px 0; font-size: 13px; color: #ccc; }}
+        .flagged-description {{ font-size: 12px; color: #888; margin: 10px 0; padding: 12px; background: #1a1a1a; border-radius: 4px; border-left: 2px solid #3eb489; }}
+        .flagged-links {{ display: flex; gap: 15px; margin-top: 10px; }}
+        .flagged-links a {{ font-size: 11px; color: #3eb489; text-decoration: none; }}
+        .flagged-links a:hover {{ text-decoration: underline; }}
+        .no-flagged {{ color: #3eb489; font-style: italic; }}
+        .footer {{ padding: 25px 30px; text-align: center; color: #4a4a4a; font-size: 11px; border-top: 1px solid #2a2a2a; }}
     </style>
 </head>
 <body>
