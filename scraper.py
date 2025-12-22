@@ -247,7 +247,7 @@ class InstagramScraper:
         logger.info(f"  Scraping posts (max {max_posts or 'all'})...")
         
         for i, post in enumerate(profile.get_posts()):
-            if max_posts and i >= max_posts:
+            if max_posts is not None and i >= max_posts:
                 break
                 
             try:
