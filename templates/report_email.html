@@ -243,6 +243,9 @@
                 <span class="post-date">{{ post.date[:16].replace('T', ' ') }}</span>
             </div>
             <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
+            {% if post.gdrive_file_id %}
+            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
+            {% endif %}
             {% if post.caption %}
             <div class="post-caption">{{ post.caption }}</div>
             {% endif %}
@@ -265,6 +268,11 @@
                 </span>
                 <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
+            {% if story.gdrive_screenshot_id %}
+            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view" target="_blank">View on Google Drive</a></div>
+            {% elif story.gdrive_file_id %}
+            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
+            {% endif %}
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ story.flag_reason }}
             </div>
@@ -290,6 +298,9 @@
                 <span class="post-date">{{ post.date[:16].replace('T', ' ') }} - {{ post.likes }} likes</span>
             </div>
             <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
+            {% if post.gdrive_file_id %}
+            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
+            {% endif %}
             {% if post.caption %}
             <div class="post-caption">{{ post.caption }}</div>
             {% endif %}
@@ -319,6 +330,11 @@
                 </span>
                 <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
+            {% if story.gdrive_screenshot_id %}
+            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view" target="_blank">View on Google Drive</a></div>
+            {% elif story.gdrive_file_id %}
+            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
+            {% endif %}
             {% if story.media_description %}
             <div class="post-description">
                 {{ story.media_description }}
