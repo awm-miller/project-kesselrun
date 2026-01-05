@@ -14,6 +14,7 @@ import json
 import logging
 import asyncio
 import argparse
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
@@ -23,7 +24,8 @@ import time
 sys.stdout.reconfigure(encoding='utf-8')
 
 from config import (
-    ACCOUNT_DELAY_SECONDS,
+    ACCOUNT_DELAY_MIN,
+    ACCOUNT_DELAY_MAX,
     ACCOUNTS_FILE,
     RESULTS_DIR,
     LOG_FORMAT,
@@ -158,10 +160,11 @@ async def main(accounts_file: str, max_posts: int = None):
         except Exception as e:
             logger.error(f"Failed to process @{username}: {e}")
         
-        # Wait between accounts (anti-bot detection)
+        # Wait between accounts (random delay for anti-bot detection)
         if i < len(accounts) - 1:
-            logger.info(f"\nWaiting {ACCOUNT_DELAY_SECONDS}s before next account...")
-            await asyncio.sleep(ACCOUNT_DELAY_SECONDS)
+            delay = random.uniform(ACCOUNT_DELAY_MIN, ACCOUNT_DELAY_MAX)
+            logger.info(f"\nWaiting {delay:.0f}s before next account...")
+            await asyncio.sleep(delay)
     
     logger.info("\n" + "=" * 60)
     logger.info("INSTAGRAM MONITOR COMPLETE")

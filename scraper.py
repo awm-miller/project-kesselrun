@@ -4,6 +4,8 @@ Instagram Scraper with Video and Story Support
 import os
 import logging
 import shutil
+import random
+import time
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
@@ -16,6 +18,8 @@ from config import (
     INSTAGRAM_PASSWORD,
     TEMP_DIR,
     COOKIES_FILE,
+    STORY_DELAY_MIN,
+    STORY_DELAY_MAX,
 )
 
 logger = logging.getLogger("scraper")
@@ -197,6 +201,11 @@ class InstagramScraper:
             stories = []
             if include_stories:
                 if self._logged_in:
+                    # Random delay before stories to avoid rate limits
+                    delay = random.uniform(STORY_DELAY_MIN, STORY_DELAY_MAX)
+                    logger.info(f"  Waiting {delay:.1f}s before fetching stories...")
+                    time.sleep(delay)
+                    
                     # Re-fetch profile with authenticated loader for stories
                     try:
                         auth_profile = instaloader.Profile.from_username(self.loader.context, username)

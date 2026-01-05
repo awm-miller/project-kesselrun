@@ -14,8 +14,11 @@ INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.0-flash"
 
-# Anti-bot detection
-ACCOUNT_DELAY_SECONDS = 30
+# Anti-bot detection (random delays to appear more human)
+ACCOUNT_DELAY_MIN = 25
+ACCOUNT_DELAY_MAX = 45
+STORY_DELAY_MIN = 3
+STORY_DELAY_MAX = 8
 
 # Paths
 ACCOUNTS_FILE = "accounts.json"
