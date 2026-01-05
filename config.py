@@ -19,14 +19,38 @@ ACCOUNT_DELAY_MIN = 25
 ACCOUNT_DELAY_MAX = 45
 STORY_DELAY_MIN = 3
 STORY_DELAY_MAX = 8
+STORY_ITEM_DELAY_SECONDS = 10  # Pause between individual story slides
 
 # Paths
 ACCOUNTS_FILE = "accounts.json"
 RESULTS_DIR = "results"
 TEMP_DIR = "temp_downloads"
 COOKIES_FILE = "cookies.txt"
+STATE_FILE = "state.json"
+SUBSCRIBERS_FILE = "subscribers.json"
+
+# Google Drive
+GOOGLE_SERVICE_ACCOUNT_PATH = os.getenv("GOOGLE_SERVICE_ACCOUNT_PATH", "serviceaccount.json")
+GOOGLE_DRIVE_ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID")  # Optional
+
+# SMTP Email Configuration
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL")
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Instagram Monitor")
+
+# Report Generation
+TEMPLATES_DIR = "templates"
 
 # Logging
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+LOG_FILE = "monitor.log"
+
+# Dashboard
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin")
+DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
+DASHBOARD_SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "instagram-monitor-secret-key-change-me")
 

@@ -36,13 +36,17 @@ class InstagramAnalyzer:
     """Analyzes Instagram content using Gemini 2.0 Flash"""
     
     # Prompt for image analysis
-    IMAGE_PROMPT = """Describe this Instagram image in 2-3 sentences.
+    IMAGE_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is", "This image shows", "The image depicts", or any other preamble. Begin your response directly with the factual description.
+
+Describe this Instagram image in 2-3 sentences.
 Focus on: people, symbols, flags, text overlays, gestures, locations.
 Specifically highlight any imagery which is antisemitic, anti-Zionist, or in support of proscribed terrorist organisations (Hamas, Hezbollah, etc).
 Be factual and objective."""
 
     # Prompt for video analysis
-    VIDEO_PROMPT = """Analyze this Instagram video comprehensively:
+    VIDEO_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is the analysis", "The video shows", "This video depicts", or any other preamble. Begin your response directly with the transcript.
+
+Analyze this Instagram video:
 
 1. TRANSCRIBE all speech/audio - include the full transcript
 2. DESCRIBE key visual content: people, symbols, flags, text overlays, locations, gestures
@@ -51,7 +55,9 @@ Be factual and objective."""
 Be factual and objective. Provide a complete analysis."""
 
     # Prompt for final analysis
-    ANALYSIS_PROMPT = """You are a forensic analyst examining the Instagram activity of @{username}.
+    ANALYSIS_PROMPT = """IMPORTANT: Do NOT include any conversational filler, preamble, or phrases like "Okay", "Here is", etc. Start directly with the clinical summary.
+
+You are a forensic analyst examining the Instagram activity of @{username}.
 
 MATERIAL VOLUME: {total_posts} total posts are provided below for analysis.
 Each post has an INDEX number. Use these indices to identify posts.
@@ -68,7 +74,7 @@ Flag only posts that are CLEARLY problematic - not just political opinions. Look
 - Antisemitic, anti-Zionist, or pro-terrorist content
 - Support for proscribed terrorist organisations (Hamas, Hezbollah, etc)
 
-Limit to the TOP 50 MOST controversial posts maximum. Do NOT flag normal political opinions or criticism.
+Do NOT flag normal political opinions or criticism.
 
 POSTS DATA:
 {posts_data}
@@ -82,7 +88,13 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
   ]
 }}"""
 
-    def __init__(self):
+    def __init__(self, gdrive_uploader=None):
+        """
+        Initialize the analyzer
+        
+        Args:
+            gdrive_uploader: Optional GoogleDriveUploader instance for uploading media during analysis
+        """
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY not configured")
         
@@ -95,10 +107,21 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
             )
         )
         self.vision_model = genai.GenerativeModel(GEMINI_MODEL)
+        self.gdrive_uploader = gdrive_uploader
         logger.info(f"Analyzer initialized with {GEMINI_MODEL}")
     
-    def analyze_scrape_result(self, result: ScrapeResult) -> AnalysisResult:
-        """Analyze a complete scrape result"""
+    def analyze_scrape_result(self, result: ScrapeResult, date_str: str = None) -> AnalysisResult:
+        """
+        Analyze a complete scrape result
+        
+        Args:
+            result: ScrapeResult from scraper
+            date_str: Date string (YYYY-MM-DD) for Google Drive folder structure
+        """
+        from datetime import datetime
+        if date_str is None:
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            
         if result.error:
             return AnalysisResult(
                 username=result.profile.username,
@@ -123,30 +146,69 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 total_stories=0,
             )
         
-        # Step 1: Analyze each piece of media
-        logger.info(f"  Step 1: Analyzing {len(all_content)} media items...")
+        # Step 1: Analyze each piece of media AND upload to Google Drive
+        upload_msg = " + uploading to Google Drive" if self.gdrive_uploader else ""
+        logger.info(f"  Step 1: Analyzing {len(all_content)} media items{upload_msg}...")
         analyzed_posts = []
         
         for i, post in enumerate(all_content):
-            logger.info(f"  [{i+1}/{len(all_content)}] Analyzing {'video' if post.is_video else 'image'}...")
+            media_type = 'video' if post.is_video else 'image'
+            content_type = 'STORIES' if post.is_story else 'POSTS'
+            logger.info(f"  [{i+1}/{len(all_content)}] Analyzing {media_type}...")
             
             description = ""
+            gdrive_file_id = None
+            
             if post.media_path and post.media_path.exists():
+                # Analyze with Gemini
                 if post.is_video:
                     description = self._analyze_video(post.media_path)
                 else:
                     description = self._analyze_image(post.media_path)
+                
+                # Upload to Google Drive simultaneously
+                if self.gdrive_uploader:
+                    try:
+                        gdrive_file_id = self.gdrive_uploader.upload_file(
+                            local_path=post.media_path,
+                            username=result.profile.username,
+                            content_type=content_type,
+                            date_str=date_str
+                        )
+                        if gdrive_file_id:
+                            logger.info(f"    ↳ Uploaded to Google Drive: {post.media_path.name}")
+                    except Exception as e:
+                        logger.warning(f"    ↳ Failed to upload to Google Drive: {e}")
+            
+            # Upload story screenshot if available
+            gdrive_screenshot_id = None
+            if post.is_story and post.screenshot_path and post.screenshot_path.exists():
+                if self.gdrive_uploader:
+                    try:
+                        gdrive_screenshot_id = self.gdrive_uploader.upload_file(
+                            local_path=post.screenshot_path,
+                            username=result.profile.username,
+                            content_type="screenshot",
+                            date_str=date_str
+                        )
+                        if gdrive_screenshot_id:
+                            logger.info(f"    ↳ Uploaded screenshot to Google Drive")
+                    except Exception as e:
+                        logger.warning(f"    ↳ Failed to upload screenshot: {e}")
             
             analyzed_posts.append({
                 "index": i,
                 "shortcode": post.shortcode,
                 "url": post.url,
                 "date": post.date.isoformat(),
-                "caption": post.caption[:500] if post.caption else "",
+                "caption": post.caption if post.caption else "",
                 "is_video": post.is_video,
                 "is_story": post.is_story,
                 "likes": post.likes,
                 "media_description": description,
+                "media_path": str(post.media_path) if post.media_path else None,
+                "gdrive_file_id": gdrive_file_id,
+                "gdrive_screenshot_id": gdrive_screenshot_id,
             })
         
         # Step 2: Run comprehensive analysis

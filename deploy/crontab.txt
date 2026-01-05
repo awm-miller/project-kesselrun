@@ -1,0 +1,22 @@
+# Instagram Monitor - Cron Configuration
+# Runs daily at midnight UTC
+
+# Daily run at midnight
+0 0 * * * cd /opt/instagram_monitor && /opt/instagram_monitor/venv/bin/python monitor.py >> /var/log/instagram_monitor/monitor.log 2>&1
+
+# Alternative schedules (comment/uncomment as needed):
+
+# Every 6 hours
+# 0 */6 * * * cd /opt/instagram_monitor && /opt/instagram_monitor/venv/bin/python monitor.py >> /var/log/instagram_monitor/monitor.log 2>&1
+
+# Every 12 hours
+# 0 */12 * * * cd /opt/instagram_monitor && /opt/instagram_monitor/venv/bin/python monitor.py >> /var/log/instagram_monitor/monitor.log 2>&1
+
+# Twice daily (midnight and noon)
+# 0 0,12 * * * cd /opt/instagram_monitor && /opt/instagram_monitor/venv/bin/python monitor.py >> /var/log/instagram_monitor/monitor.log 2>&1
+
+# Manual installation:
+# crontab -e
+# Then paste the desired schedule from above
+
+

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Subscribers - Kessel Run{% endblock %}
+
+{% block page_title %}Email Subscribers{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="showAddSubscriberModal()">
+    + Add Subscriber
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3>Mailing List</h3>
+        <span class="badge" id="subscriber-count">0 subscribers</span>
+    </div>
+    
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Email Address</th>
+                    <th>Added</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="subscribers-table-body">
+                <tr class="loading-row">
+                    <td colspan="3">Loading subscribers...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Subscriber Modal -->
+<div class="modal-overlay" id="add-subscriber-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Add Subscriber</h3>
+            <button class="modal-close" onclick="hideAddSubscriberModal()">&times;</button>
+        </div>
+        <form id="add-subscriber-form" onsubmit="addSubscriber(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        placeholder="e.g. user@example.com"
+                        required
+                    >
+                </div>
+                <small class="form-hint">This email will receive daily monitoring reports</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideAddSubscriberModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Subscriber</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let subscribers = [];
+    
+    // Load subscribers on page load
+    document.addEventListener('DOMContentLoaded', loadSubscribers);
+    
+    async function loadSubscribers() {
+        try {
+            const result = await apiCall('/api/subscribers');
+            subscribers = result.subscribers;
+            renderSubscribers();
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+    
+    function renderSubscribers() {
+        const tbody = document.getElementById('subscribers-table-body');
+        const countBadge = document.getElementById('subscriber-count');
+        
+        countBadge.textContent = `${subscribers.length} subscriber${subscribers.length !== 1 ? 's' : ''}`;
+        
+        if (subscribers.length === 0) {
+            tbody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="3">
+                        <div class="empty-state">
+                            <span class="empty-icon">📧</span>
+                            <p>No subscribers yet</p>
+                            <button class="btn btn-primary btn-sm" onclick="showAddSubscriberModal()">
+                                Add First Subscriber
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = subscribers.map(sub => `
+            <tr>
+                <td>
+                    <a href="mailto:${sub.email}" class="email-link">
+                        ${sub.email}
+                    </a>
+                </td>
+                <td class="date-cell">${formatDate(sub.added_date)}</td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSubscriber('${sub.email}')">
+                        Remove
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    function formatDate(isoDate) {
+        if (!isoDate) return 'Unknown';
+        const date = new Date(isoDate);
+        return date.toLocaleDateString('en-GB', { 
+            day: 'numeric', 
+            month: 'short', 
+            year: 'numeric' 
+        });
+    }
+    
+    function showAddSubscriberModal() {
+        document.getElementById('add-subscriber-modal').classList.add('show');
+        document.getElementById('email').focus();
+    }
+    
+    function hideAddSubscriberModal() {
+        document.getElementById('add-subscriber-modal').classList.remove('show');
+        document.getElementById('add-subscriber-form').reset();
+    }
+    
+    async function addSubscriber(event) {
+        event.preventDefault();
+        
+        const email = document.getElementById('email').value.trim();
+        
+        try {
+            await apiCall('/api/subscribers', 'POST', { email });
+            
+            showToast(`Added ${email}`, 'success');
+            hideAddSubscriberModal();
+            loadSubscribers();
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+    
+    async function deleteSubscriber(email) {
+        if (!confirm(`Remove ${email} from mailing list?`)) return;
+        
+        try {
+            await apiCall(`/api/subscribers/${encodeURIComponent(email)}`, 'DELETE');
+            showToast(`Removed ${email}`, 'success');
+            loadSubscribers();
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') hideAddSubscriberModal();
+    });
+</script>
+{% endblock %}
+

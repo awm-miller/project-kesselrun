@@ -6,12 +6,16 @@ import logging
 import shutil
 import random
 import time
+import http.cookiejar
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 import instaloader
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from playwright.sync_api import sync_playwright
 
 from config import (
     INSTAGRAM_USERNAME,
@@ -37,6 +41,7 @@ class InstagramPost:
     is_story: bool = False
     media_path: Optional[Path] = None
     video_url: Optional[str] = None
+    screenshot_path: Optional[Path] = None
     
 
 @dataclass
@@ -309,9 +314,19 @@ class InstagramScraper:
                         if not media_path.exists():
                             self._download_media(media_url, media_path)
                         
+                        story_url = f"https://www.instagram.com/stories/{profile.username}/{item.mediaid}/"
+                        
+                        # Take screenshot of the story
+                        screenshot_path = download_dir / f"story_{item.mediaid}_screenshot.png"
+                        screenshot_success = self.take_story_screenshot(
+                            story_url=story_url,
+                            screenshot_path=screenshot_path,
+                            username=profile.username
+                        )
+                        
                         story_post = InstagramPost(
                             shortcode=str(item.mediaid),
-                            url=f"https://www.instagram.com/stories/{profile.username}/{item.mediaid}/",
+                            url=story_url,
                             caption=item.caption or "",
                             date=item.date_utc.replace(tzinfo=timezone.utc),
                             likes=0,  # Stories don't have public like counts
@@ -319,6 +334,7 @@ class InstagramScraper:
                             is_story=True,
                             media_path=media_path if media_path.exists() else None,
                             video_url=item.video_url if is_video else None,
+                            screenshot_path=screenshot_path if screenshot_success else None,
                         )
                         
                         stories.append(story_post)
@@ -345,6 +361,132 @@ class InstagramScraper:
             return True
         except Exception as e:
             logger.warning(f"  Failed to download {url}: {e}")
+            return False
+    
+    def _get_playwright_cookies(self) -> List[dict]:
+        """Convert Netscape format cookies.txt to Playwright cookie format"""
+        cookies_path = Path(COOKIES_FILE)
+        if not cookies_path.exists():
+            return []
+        
+        cookie_jar = http.cookiejar.MozillaCookieJar(str(cookies_path))
+        cookie_jar.load(ignore_discard=True, ignore_expires=True)
+        
+        playwright_cookies = []
+        for cookie in cookie_jar:
+            if 'instagram' in cookie.domain:
+                pw_cookie = {
+                    'name': cookie.name,
+                    'value': cookie.value,
+                    'domain': cookie.domain,
+                    'path': cookie.path or '/',
+                }
+                # Only add secure/httpOnly if they're set
+                if cookie.secure:
+                    pw_cookie['secure'] = True
+                playwright_cookies.append(pw_cookie)
+        
+        return playwright_cookies
+    
+    def _take_screenshot_sync(self, story_url: str, screenshot_path: Path, cookies: List[dict]) -> bool:
+        """Internal sync method that runs Playwright - called from a thread pool"""
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    viewport={'width': 430, 'height': 932},  # iPhone 14 Pro Max dimensions
+                    user_agent='Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+                )
+                
+                # Load cookies for authentication
+                if cookies:
+                    context.add_cookies(cookies)
+                
+                page = context.new_page()
+                
+                # Navigate to story URL
+                page.goto(story_url, wait_until='networkidle', timeout=30000)
+                
+                # Wait a bit for initial load
+                page.wait_for_timeout(2000)
+                
+                # Try to click "View Story" button if present
+                view_story_selectors = [
+                    'button:has-text("View story")',
+                    'button:has-text("View Story")',
+                    '[role="button"]:has-text("View")',
+                    'div[role="button"]:has-text("story")',
+                ]
+                
+                clicked = False
+                for selector in view_story_selectors:
+                    try:
+                        button = page.locator(selector).first
+                        if button.is_visible(timeout=2000):
+                            button.click()
+                            clicked = True
+                            page.wait_for_timeout(3000)  # Wait for story to load
+                            break
+                    except:
+                        continue
+                
+                if not clicked:
+                    page.wait_for_timeout(2000)
+                
+                # Wait for story content to load
+                page.wait_for_timeout(1000)
+                
+                # Take screenshot
+                screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(screenshot_path), full_page=False)
+                
+                browser.close()
+                
+                return screenshot_path.exists()
+                
+        except Exception as e:
+            logger.warning(f"    Screenshot thread failed: {e}")
+            return False
+    
+    def take_story_screenshot(self, story_url: str, screenshot_path: Path, username: str) -> bool:
+        """
+        Take a screenshot of an Instagram story using Playwright.
+        Runs in a separate thread to avoid asyncio conflicts.
+        
+        Args:
+            story_url: Full URL to the story
+            screenshot_path: Path to save the screenshot
+            username: Instagram username for logging
+            
+        Returns:
+            True if screenshot was taken successfully, False otherwise
+        """
+        try:
+            logger.info(f"    Taking screenshot of story...")
+            
+            cookies = self._get_playwright_cookies()
+            if cookies:
+                logger.info(f"    Loaded {len(cookies)} cookies for auth")
+            
+            # Run Playwright in a separate thread to avoid asyncio conflicts
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    self._take_screenshot_sync,
+                    story_url,
+                    screenshot_path,
+                    cookies
+                )
+                success = future.result(timeout=60)
+            
+            if success:
+                logger.info(f"    ↳ Screenshot saved: {screenshot_path.name}")
+                return True
+            else:
+                logger.warning(f"    Screenshot file not created")
+                return False
+                
+        except Exception as e:
+            logger.warning(f"    Screenshot failed: {e}")
             return False
     
     def cleanup(self, username: str):

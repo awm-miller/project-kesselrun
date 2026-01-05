@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Kessel Run{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">🚀</span>
+                <span class="logo-text">Kessel Run</span>
+            </div>
+        </div>
+        
+        <ul class="nav-links">
+            <li>
+                <a href="{{ url_for('accounts') }}" class="{% if active_page == 'accounts' %}active{% endif %}">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">Accounts</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('subscribers') }}" class="{% if active_page == 'subscribers' %}active{% endif %}">
+                    <span class="nav-icon">📧</span>
+                    <span class="nav-text">Subscribers</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('logs') }}" class="{% if active_page == 'logs' %}active{% endif %}">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-text">Logs</span>
+                </a>
+            </li>
+        </ul>
+        
+        <div class="sidebar-footer">
+            <a href="{{ url_for('logout') }}" class="logout-btn">
+                <span class="nav-icon">🚪</span>
+                <span class="nav-text">Logout</span>
+            </a>
+        </div>
+    </nav>
+    
+    <main class="content">
+        <header class="page-header">
+            <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="header-actions">
+                {% block header_actions %}{% endblock %}
+            </div>
+        </header>
+        
+        <div class="page-content">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+    
+    <div id="toast-container"></div>
+    
+    <script>
+        // Toast notification system
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        
+        // API helper
+        async function apiCall(url, method = 'GET', data = null) {
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' }
+            };
+            if (data) options.body = JSON.stringify(data);
+            
+            const response = await fetch(url, options);
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Request failed');
+            }
+            return result;
+        }
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+
