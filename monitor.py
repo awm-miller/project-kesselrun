@@ -38,6 +38,7 @@ from config import (
     INSTAGRAM_USERNAME,
     COOKIES_FILE,
     STATE_FILE,
+    STATS_FILE,
     SUBSCRIBERS_FILE,
     GOOGLE_SERVICE_ACCOUNT_PATH,
     GOOGLE_DRIVE_ROOT_FOLDER_ID,
@@ -95,6 +96,52 @@ def save_result_local(filepath: str, result: AnalysisResult):
         json.dump(output, f, indent=2, ensure_ascii=False)
     
     logger.info(f"Local results saved to {filepath}")
+
+
+def update_stats(all_results: List[Dict[str, Any]], state_tracker: StateTracker):
+    """Update stats.json with aggregate statistics after each run"""
+    # Load existing stats or create new
+    stats_path = Path(STATS_FILE)
+    if stats_path.exists():
+        try:
+            with open(stats_path, 'r', encoding='utf-8') as f:
+                stats = json.load(f)
+        except:
+            stats = {}
+    else:
+        stats = {}
+    
+    # Calculate totals from state tracker (cumulative)
+    total_posts = 0
+    total_stories = 0
+    for username in state_tracker.state:
+        account_stats = state_tracker.get_stats(username)
+        total_posts += account_stats['total_posts_analyzed']
+        total_stories += account_stats['total_stories_analyzed']
+    
+    # Calculate flagged counts from this run
+    run_flagged = 0
+    flagged_by_account = stats.get('flagged_by_account', {})
+    
+    for result_data in all_results:
+        username = result_data['username']
+        analysis = result_data.get('analysis_result')
+        if analysis and analysis.flagged_count > 0:
+            run_flagged += analysis.flagged_count
+            flagged_by_account[username] = flagged_by_account.get(username, 0) + analysis.flagged_count
+    
+    # Update stats
+    stats['last_run'] = datetime.utcnow().isoformat()
+    stats['total_posts_analyzed'] = total_posts
+    stats['total_stories_analyzed'] = total_stories
+    stats['total_flagged'] = stats.get('total_flagged', 0) + run_flagged
+    stats['flagged_by_account'] = flagged_by_account
+    
+    # Save stats
+    with open(stats_path, 'w', encoding='utf-8') as f:
+        json.dump(stats, f, indent=2, ensure_ascii=False)
+    
+    logger.info(f"Stats updated: {total_posts} posts, {total_stories} stories, {stats['total_flagged']} total flagged")
 
 
 async def process_account(
@@ -437,6 +484,10 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
                     Path(report_path).unlink()
                 except:
                     pass
+    
+    # Update aggregate statistics
+    logger.info("\nUpdating aggregate statistics...")
+    update_stats(all_results, state_tracker)
     
     logger.info("\n" + "=" * 60)
     logger.info("INSTAGRAM MONITOR COMPLETE")

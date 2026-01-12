@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Kessel Run{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.get('total_posts_analyzed', 0) }}</div>
+        <div class="stat-label">Posts Analyzed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.get('total_stories_analyzed', 0) }}</div>
+        <div class="stat-label">Stories Analyzed</div>
+    </div>
+    <div class="stat-card {% if stats.get('total_flagged', 0) > 0 %}flagged{% endif %}">
+        <div class="stat-value">{{ stats.get('total_flagged', 0) }}</div>
+        <div class="stat-label">Flagged Content</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ total_accounts }}</div>
+        <div class="stat-label">Accounts Monitored</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Cookie Status</h2>
+    <div class="cookie-status {% if cookie_stale %}stale{% else %}fresh{% endif %}">
+        {% if cookie_age >= 0 %}
+            <span class="status-indicator"></span>
+            <span>Last updated: {{ cookie_mtime }} ({{ "%.1f"|format(cookie_age) }} days ago)</span>
+            {% if cookie_stale %}
+                <span class="warning">Cookies may be stale - consider refreshing</span>
+            {% endif %}
+        {% else %}
+            <span class="status-indicator"></span>
+            <span>No cookies file found</span>
+        {% endif %}
+    </div>
+    <a href="{{ url_for('cookies') }}" class="btn btn-secondary">Manage Cookies</a>
+</div>
+
+<div class="card">
+    <h2>Last Run</h2>
+    <p>{{ stats.get('last_run', 'Never') }}</p>
+</div>
+
+<div class="card">
+    <h2>Account Statistics</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Stories</th>
+                <th>Posts</th>
+                <th>Stories</th>
+                <th>Flagged</th>
+                <th>Last Run</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for acc in account_stats %}
+            <tr>
+                <td>@{{ acc.username }}</td>
+                <td>
+                    {% if acc.include_stories %}
+                        <span class="badge badge-success">ON</span>
+                    {% else %}
+                        <span class="badge badge-muted">OFF</span>
+                    {% endif %}
+                </td>
+                <td>{{ acc.posts_analyzed }}</td>
+                <td>{{ acc.stories_analyzed }}</td>
+                <td class="{% if acc.flagged > 0 %}text-warning{% endif %}">{{ acc.flagged }}</td>
+                <td class="text-muted">{{ acc.last_run[:10] if acc.last_run != 'Never' else 'Never' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+

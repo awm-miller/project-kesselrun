@@ -2,211 +2,68 @@
 
 {% block title %}Accounts - Kessel Run{% endblock %}
 
-{% block page_title %}Monitored Accounts{% endblock %}
-
-{% block header_actions %}
-<button class="btn btn-primary" onclick="showAddAccountModal()">
-    + Add Account
-</button>
-{% endblock %}
-
 {% block content %}
+<h1>Account Management</h1>
+
 <div class="card">
-    <div class="card-header">
-        <h3>Instagram Accounts</h3>
-        <span class="badge" id="account-count">0 accounts</span>
-    </div>
-    
-    <div class="table-container">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Stories</th>
-                    <th>Added</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="accounts-table-body">
-                <tr class="loading-row">
-                    <td colspan="4">Loading accounts...</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Add Account Modal -->
-<div class="modal-overlay" id="add-account-modal">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>Add Account</h3>
-            <button class="modal-close" onclick="hideAddAccountModal()">&times;</button>
+    <h2>Add Account</h2>
+    <form method="POST" action="{{ url_for('add_account') }}" class="inline-form">
+        <div class="form-group">
+            <input type="text" name="username" placeholder="Instagram username" required>
         </div>
-        <form id="add-account-form" onsubmit="addAccount(event)">
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="username">Instagram Username</label>
-                    <input 
-                        type="text" 
-                        id="username" 
-                        name="username" 
-                        placeholder="e.g. @example_account"
-                        required
-                    >
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="include_stories" name="include_stories">
-                        <span>Include Stories</span>
-                    </label>
-                    <small class="form-hint">Stories require login cookies and take longer to scrape</small>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="hideAddAccountModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add Account</button>
-            </div>
-        </form>
-    </div>
+        <div class="form-group checkbox-group">
+            <label>
+                <input type="checkbox" name="include_stories" checked>
+                Include Stories
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Account</button>
+    </form>
 </div>
-{% endblock %}
 
-{% block scripts %}
-<script>
-    let accounts = [];
+<div class="card">
+    <h2>Monitored Accounts ({{ accounts|length }})</h2>
     
-    // Load accounts on page load
-    document.addEventListener('DOMContentLoaded', loadAccounts);
-    
-    async function loadAccounts() {
-        try {
-            const result = await apiCall('/api/accounts');
-            accounts = result.accounts;
-            renderAccounts();
-        } catch (error) {
-            showToast(error.message, 'error');
-        }
-    }
-    
-    function renderAccounts() {
-        const tbody = document.getElementById('accounts-table-body');
-        const countBadge = document.getElementById('account-count');
-        
-        countBadge.textContent = `${accounts.length} account${accounts.length !== 1 ? 's' : ''}`;
-        
-        if (accounts.length === 0) {
-            tbody.innerHTML = `
-                <tr class="empty-row">
-                    <td colspan="4">
-                        <div class="empty-state">
-                            <span class="empty-icon">👥</span>
-                            <p>No accounts being monitored</p>
-                            <button class="btn btn-primary btn-sm" onclick="showAddAccountModal()">
-                                Add First Account
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
-        tbody.innerHTML = accounts.map(acc => `
+    {% if accounts %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Stories</th>
+                <th>Posts Analyzed</th>
+                <th>Stories Analyzed</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for account in accounts %}
             <tr>
                 <td>
-                    <a href="https://instagram.com/${acc.username}" target="_blank" class="username-link">
-                        @${acc.username}
+                    <a href="https://instagram.com/{{ account.username }}" target="_blank" class="account-link">
+                        @{{ account.username }}
                     </a>
                 </td>
                 <td>
-                    <label class="toggle-switch">
-                        <input 
-                            type="checkbox" 
-                            ${acc.include_stories ? 'checked' : ''} 
-                            onchange="toggleStories('${acc.username}', this.checked)"
-                        >
-                        <span class="toggle-slider"></span>
-                    </label>
+                    <form method="POST" action="{{ url_for('toggle_stories', username=account.username) }}" class="inline">
+                        <button type="submit" class="badge-btn {% if account.include_stories %}badge-success{% else %}badge-muted{% endif %}">
+                            {{ 'ON' if account.include_stories else 'OFF' }}
+                        </button>
+                    </form>
                 </td>
-                <td class="date-cell">${formatDate(acc.added_date)}</td>
+                <td>{{ account.posts_analyzed }}</td>
+                <td>{{ account.stories_analyzed }}</td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.username}')">
-                        Remove
-                    </button>
+                    <form method="POST" action="{{ url_for('remove_account', username=account.username) }}" class="inline" onsubmit="return confirm('Remove @{{ account.username }}?')">
+                        <button type="submit" class="btn btn-danger btn-small">Remove</button>
+                    </form>
                 </td>
             </tr>
-        `).join('');
-    }
-    
-    function formatDate(isoDate) {
-        if (!isoDate) return 'Unknown';
-        const date = new Date(isoDate);
-        return date.toLocaleDateString('en-GB', { 
-            day: 'numeric', 
-            month: 'short', 
-            year: 'numeric' 
-        });
-    }
-    
-    function showAddAccountModal() {
-        document.getElementById('add-account-modal').classList.add('show');
-        document.getElementById('username').focus();
-    }
-    
-    function hideAddAccountModal() {
-        document.getElementById('add-account-modal').classList.remove('show');
-        document.getElementById('add-account-form').reset();
-    }
-    
-    async function addAccount(event) {
-        event.preventDefault();
-        
-        const username = document.getElementById('username').value.trim();
-        const includeStories = document.getElementById('include_stories').checked;
-        
-        try {
-            await apiCall('/api/accounts', 'POST', {
-                username: username,
-                include_stories: includeStories
-            });
-            
-            showToast(`Added @${username}`, 'success');
-            hideAddAccountModal();
-            loadAccounts();
-        } catch (error) {
-            showToast(error.message, 'error');
-        }
-    }
-    
-    async function toggleStories(username, enabled) {
-        try {
-            await apiCall(`/api/accounts/${username}`, 'PUT', {
-                include_stories: enabled
-            });
-            showToast(`Stories ${enabled ? 'enabled' : 'disabled'} for @${username}`, 'success');
-        } catch (error) {
-            showToast(error.message, 'error');
-            loadAccounts(); // Reload to reset toggle state
-        }
-    }
-    
-    async function deleteAccount(username) {
-        if (!confirm(`Remove @${username} from monitoring?`)) return;
-        
-        try {
-            await apiCall(`/api/accounts/${username}`, 'DELETE');
-            showToast(`Removed @${username}`, 'success');
-            loadAccounts();
-        } catch (error) {
-            showToast(error.message, 'error');
-        }
-    }
-    
-    // Close modal on escape key
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') hideAddAccountModal();
-    });
-</script>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No accounts configured. Add an account above to get started.</p>
+    {% endif %}
+</div>
 {% endblock %}
 

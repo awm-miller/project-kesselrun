@@ -4,20 +4,27 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
-WorkingDirectory=/opt/instagram_monitor
-Environment="PATH=/opt/instagram_monitor/venv/bin"
-EnvironmentFile=/opt/instagram_monitor/.env
-ExecStart=/opt/instagram_monitor/venv/bin/python /opt/instagram_monitor/dashboard/app.py
+User=root
+Group=root
+WorkingDirectory=/root/project-kesselrun/dashboard
+Environment="PATH=/root/project-kesselrun/venv/bin"
+ExecStart=/root/project-kesselrun/venv/bin/python /root/project-kesselrun/dashboard/app.py
 Restart=always
 RestartSec=5
-
-# Logging
-StandardOutput=append:/var/log/instagram_monitor/dashboard.log
-StandardError=append:/var/log/instagram_monitor/dashboard.log
 
 [Install]
 WantedBy=multi-user.target
 
-
+# Installation instructions:
+# 1. Copy this file to /etc/systemd/system/
+#    sudo cp kessel-run-dashboard.service /etc/systemd/system/
+#
+# 2. Reload systemd
+#    sudo systemctl daemon-reload
+#
+# 3. Enable and start the service
+#    sudo systemctl enable kessel-run-dashboard
+#    sudo systemctl start kessel-run-dashboard
+#
+# 4. Check status
+#    sudo systemctl status kessel-run-dashboard

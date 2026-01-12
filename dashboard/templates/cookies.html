@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Cookies - Kessel Run{% endblock %}
+
+{% block content %}
+<h1>Cookie Management</h1>
+
+<div class="card">
+    <h2>Cookie Status</h2>
+    <div class="cookie-status {% if cookie_stale %}stale{% else %}fresh{% endif %}">
+        {% if cookie_age >= 0 %}
+            <span class="status-indicator"></span>
+            <span>Last updated: {{ cookie_mtime }} ({{ "%.1f"|format(cookie_age) }} days ago)</span>
+            {% if cookie_stale %}
+                <span class="warning">Cookies may be stale - consider refreshing</span>
+            {% endif %}
+        {% else %}
+            <span class="status-indicator"></span>
+            <span>No cookies file found</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>Update Cookies</h2>
+    <p class="help-text">Paste the contents of your Netscape format cookies.txt file below. You can export these from your browser using a cookie export extension.</p>
+    
+    <form method="POST" action="{{ url_for('cookies') }}">
+        <div class="form-group">
+            <textarea name="cookies" rows="15" placeholder="# Netscape HTTP Cookie File
+.instagram.com	TRUE	/	TRUE	...">{{ current_cookies }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Update Cookies</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>How to Export Cookies</h2>
+    <ol class="instructions">
+        <li>Install a cookie export browser extension (e.g., "Get cookies.txt LOCALLY")</li>
+        <li>Log into Instagram in your browser</li>
+        <li>Use the extension to export cookies in Netscape format</li>
+        <li>Copy the entire contents and paste above</li>
+        <li>Click "Update Cookies"</li>
+    </ol>
+</div>
+{% endblock %}
+

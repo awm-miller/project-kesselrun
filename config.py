@@ -27,6 +27,7 @@ RESULTS_DIR = "results"
 TEMP_DIR = "temp_downloads"
 COOKIES_FILE = "cookies.txt"
 STATE_FILE = "state.json"
+STATS_FILE = "stats.json"
 SUBSCRIBERS_FILE = "subscribers.json"
 
 # Google Drive
