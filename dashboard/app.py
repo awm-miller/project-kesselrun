@@ -109,24 +109,28 @@ def logout():
 @login_required
 def index():
     """Main dashboard - shows stats overview"""
-    # Load stats
-    stats = load_json_file(STATS_FILE)
     state = load_json_file(STATE_FILE)
     accounts = load_json_file(ACCOUNTS_FILE).get('accounts', [])
     
     # Calculate per-account stats from state
     account_stats = []
+    total_posts = 0
+    total_stories = 0
+    
     for account in accounts:
         username = account['username']
         if username in state:
             acc_state = state[username]
+            posts_count = len(acc_state.get('posts', []))
+            stories_count = len(acc_state.get('stories', []))
+            total_posts += posts_count
+            total_stories += stories_count
             account_stats.append({
                 'username': username,
                 'include_stories': account.get('include_stories', False),
-                'posts_analyzed': len(acc_state.get('posts', [])),
-                'stories_analyzed': len(acc_state.get('stories', [])),
+                'posts_analyzed': posts_count,
+                'stories_analyzed': stories_count,
                 'last_run': acc_state.get('last_run', 'Never'),
-                'flagged': stats.get('flagged_by_account', {}).get(username, 0)
             })
         else:
             account_stats.append({
@@ -135,7 +139,6 @@ def index():
                 'posts_analyzed': 0,
                 'stories_analyzed': 0,
                 'last_run': 'Never',
-                'flagged': 0
             })
     
     # Cookie status
@@ -144,9 +147,10 @@ def index():
     cookie_stale = cookie_age > 7 if cookie_age >= 0 else True
     
     return render_template('index.html',
-        stats=stats,
         account_stats=account_stats,
         total_accounts=len(accounts),
+        total_posts=total_posts,
+        total_stories=total_stories,
         cookie_age=cookie_age,
         cookie_mtime=cookie_mtime,
         cookie_stale=cookie_stale
