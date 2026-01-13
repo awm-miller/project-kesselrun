@@ -474,6 +474,86 @@ textarea {
     max-width: 500px;
 }
 
+/* Expandable List Cards */
+.list-card {
+    padding: 0;
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.list-header:hover {
+    background: var(--bg-tertiary);
+}
+
+.list-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.expand-icon {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    width: 1rem;
+}
+
+.list-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.list-content {
+    border-top: 1px solid var(--border);
+    padding: 1.5rem;
+    background: var(--bg-tertiary);
+}
+
+.rename-section {
+    padding: 1rem 1.5rem;
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border);
+}
+
+.subsection {
+    margin-bottom: 1.5rem;
+}
+
+.subsection:last-child {
+    margin-bottom: 0;
+}
+
+.subsection h3 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.subscriber-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.subscriber-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
 /* Utility Classes */
 .text-muted {
     color: var(--text-muted);

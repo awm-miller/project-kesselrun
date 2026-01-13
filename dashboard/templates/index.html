@@ -7,10 +7,6 @@
 
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-value">{{ total_lists }}</div>
-        <div class="stat-label">Lists</div>
-    </div>
-    <div class="stat-card">
         <div class="stat-value">{{ total_accounts }}</div>
         <div class="stat-label">Accounts</div>
     </div>
@@ -21,6 +17,10 @@
     <div class="stat-card">
         <div class="stat-value">{{ total_stories }}</div>
         <div class="stat-label">Stories Analyzed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ total_posts + total_stories }}</div>
+        <div class="stat-label">Total Content</div>
     </div>
 </div>
 
@@ -39,38 +39,5 @@
         {% endif %}
     </div>
     <a href="{{ url_for('cookies') }}" class="btn btn-secondary">Manage Cookies</a>
-</div>
-
-<div class="card">
-    <h2>Lists Overview</h2>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>List</th>
-                <th>Accounts</th>
-                <th>Subscribers</th>
-                <th>Posts</th>
-                <th>Stories</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for list in list_stats %}
-            <tr>
-                <td><strong>{{ list.name }}</strong></td>
-                <td>{{ list.account_count }}</td>
-                <td>{{ list.subscriber_count }}</td>
-                <td>{{ list.posts }}</td>
-                <td>{{ list.stories }}</td>
-                <td>
-                    <a href="{{ url_for('select_list', list_id=list.id) }}" class="btn btn-small btn-secondary">Manage</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <div style="margin-top: 15px;">
-        <a href="{{ url_for('lists') }}" class="btn btn-primary">Manage Lists</a>
-    </div>
 </div>
 {% endblock %}

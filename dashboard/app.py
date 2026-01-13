@@ -262,21 +262,32 @@ def cookies():
 @app.route('/lists')
 @login_required
 def lists():
-    """List management page"""
+    """List management page with inline account/subscriber management"""
     all_lists = get_all_lists()
-    current_list_id = get_current_list_id()
+    state = load_json_file(STATE_FILE)
     
     list_items = []
     for list_id, list_data in all_lists.items():
+        accounts = list_data.get('accounts', [])
+        
+        # Enrich accounts with stats
+        for account in accounts:
+            username = account['username']
+            if username in state:
+                account['posts_analyzed'] = len(state[username].get('posts', []))
+                account['stories_analyzed'] = len(state[username].get('stories', []))
+            else:
+                account['posts_analyzed'] = 0
+                account['stories_analyzed'] = 0
+        
         list_items.append({
             'id': list_id,
             'name': list_data.get('name', list_id),
-            'account_count': len(list_data.get('accounts', [])),
-            'subscriber_count': len(list_data.get('subscribers', [])),
-            'is_current': list_id == current_list_id,
+            'accounts': accounts,
+            'subscribers': list_data.get('subscribers', []),
         })
     
-    return render_template('lists.html', lists=list_items, current_list_id=current_list_id)
+    return render_template('lists.html', lists=list_items)
 
 
 @app.route('/lists/select/<list_id>')
@@ -367,90 +378,67 @@ def delete_list_route(list_id):
 
 
 # ============================================================
-# ACCOUNT MANAGEMENT ROUTES (scoped to current list)
+# ACCOUNT MANAGEMENT ROUTES (per-list)
 # ============================================================
 
-@app.route('/accounts')
+@app.route('/lists/<list_id>/accounts/add', methods=['POST'])
 @login_required
-def accounts():
-    """Account management page for current list"""
-    list_id, list_data = get_current_list()
-    accounts_list = list_data.get('accounts', [])
-    state = load_json_file(STATE_FILE)
-    all_lists = get_all_lists()
-    
-    # Enrich accounts with stats
-    for account in accounts_list:
-        username = account['username']
-        if username in state:
-            account['posts_analyzed'] = len(state[username].get('posts', []))
-            account['stories_analyzed'] = len(state[username].get('stories', []))
-        else:
-            account['posts_analyzed'] = 0
-            account['stories_analyzed'] = 0
-    
-    return render_template('accounts.html',
-        accounts=accounts_list,
-        current_list_id=list_id,
-        current_list_name=list_data.get('name', list_id),
-        all_lists=all_lists
-    )
-
-
-@app.route('/accounts/add', methods=['POST'])
-@login_required
-def add_account():
-    """Add a new account to current list"""
-    username = request.form.get('username', '').strip().lower()
+def add_account_to_list(list_id):
+    """Add account to a specific list"""
+    username = request.form.get('username', '').strip().lower().lstrip('@')
     include_stories = request.form.get('include_stories') == 'on'
     
     if not username:
         flash('Username is required', 'error')
-        return redirect(url_for('accounts'))
+        return redirect(url_for('lists'))
     
-    username = username.lstrip('@')
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
     
-    list_id, list_data = get_current_list()
     accounts_list = list_data.get('accounts', [])
     
     if any(a['username'] == username for a in accounts_list):
-        flash(f'Account @{username} already exists in this list', 'error')
-        return redirect(url_for('accounts'))
+        flash(f'@{username} already in this list', 'error')
+        return redirect(url_for('lists'))
     
-    accounts_list.append({
-        'username': username,
-        'include_stories': include_stories
-    })
-    
+    accounts_list.append({'username': username, 'include_stories': include_stories})
     list_data['accounts'] = accounts_list
     save_list(list_id, list_data)
     
-    flash(f'Account @{username} added to {list_data.get("name", list_id)}', 'success')
-    return redirect(url_for('accounts'))
+    flash(f'@{username} added', 'success')
+    return redirect(url_for('lists'))
 
 
-@app.route('/accounts/remove/<username>', methods=['POST'])
+@app.route('/lists/<list_id>/accounts/remove/<username>', methods=['POST'])
 @login_required
-def remove_account(username):
-    """Remove an account from current list"""
-    list_id, list_data = get_current_list()
-    accounts_list = list_data.get('accounts', [])
+def remove_account_from_list(list_id, username):
+    """Remove account from a specific list"""
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
     
+    accounts_list = list_data.get('accounts', [])
     accounts_list = [a for a in accounts_list if a['username'] != username]
     list_data['accounts'] = accounts_list
     save_list(list_id, list_data)
     
-    flash(f'Account @{username} removed', 'success')
-    return redirect(url_for('accounts'))
+    flash(f'@{username} removed', 'success')
+    return redirect(url_for('lists'))
 
 
-@app.route('/accounts/toggle-stories/<username>', methods=['POST'])
+@app.route('/lists/<list_id>/accounts/toggle/<username>', methods=['POST'])
 @login_required
-def toggle_stories(username):
-    """Toggle stories tracking for an account in current list"""
-    list_id, list_data = get_current_list()
-    accounts_list = list_data.get('accounts', [])
+def toggle_stories_in_list(list_id, username):
+    """Toggle stories for account in a specific list"""
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
     
+    accounts_list = list_data.get('accounts', [])
     for account in accounts_list:
         if account['username'] == username:
             account['include_stories'] = not account.get('include_stories', False)
@@ -460,54 +448,60 @@ def toggle_stories(username):
     save_list(list_id, list_data)
     
     flash(f'Stories toggled for @{username}', 'success')
-    return redirect(url_for('accounts'))
+    return redirect(url_for('lists'))
 
 
 # ============================================================
-# SUBSCRIBER MANAGEMENT ROUTES (scoped to current list)
+# SUBSCRIBER MANAGEMENT ROUTES (per-list)
 # ============================================================
 
-@app.route('/subscribers', methods=['GET', 'POST'])
+@app.route('/lists/<list_id>/subscribers/add', methods=['POST'])
 @login_required
-def subscribers():
-    """Subscriber management page for current list"""
-    list_id, list_data = get_current_list()
-    all_lists = get_all_lists()
+def add_subscriber_to_list(list_id):
+    """Add subscriber to a specific list"""
+    email = request.form.get('email', '').strip()
     
-    if request.method == 'POST':
-        action = request.form.get('action')
-        
-        if action == 'add':
-            email = request.form.get('email', '').strip()
-            if email:
-                subs = list_data.get('subscribers', [])
-                if email not in subs:
-                    subs.append(email)
-                    list_data['subscribers'] = subs
-                    save_list(list_id, list_data)
-                    flash(f'Subscriber {email} added to {list_data.get("name", list_id)}', 'success')
-                else:
-                    flash(f'Subscriber {email} already exists in this list', 'error')
-        
-        elif action == 'remove':
-            email = request.form.get('email', '').strip()
-            subs = list_data.get('subscribers', [])
-            if email in subs:
-                subs.remove(email)
-                list_data['subscribers'] = subs
-                save_list(list_id, list_data)
-                flash(f'Subscriber {email} removed', 'success')
-        
-        return redirect(url_for('subscribers'))
+    if not email:
+        flash('Email is required', 'error')
+        return redirect(url_for('lists'))
+    
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
     
     subs = list_data.get('subscribers', [])
+    if email in subs:
+        flash(f'{email} already subscribed', 'error')
+        return redirect(url_for('lists'))
     
-    return render_template('subscribers.html',
-        subscribers=subs,
-        current_list_id=list_id,
-        current_list_name=list_data.get('name', list_id),
-        all_lists=all_lists
-    )
+    subs.append(email)
+    list_data['subscribers'] = subs
+    save_list(list_id, list_data)
+    
+    flash(f'{email} added', 'success')
+    return redirect(url_for('lists'))
+
+
+@app.route('/lists/<list_id>/subscribers/remove', methods=['POST'])
+@login_required
+def remove_subscriber_from_list(list_id):
+    """Remove subscriber from a specific list"""
+    email = request.form.get('email', '').strip()
+    
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
+    
+    subs = list_data.get('subscribers', [])
+    if email in subs:
+        subs.remove(email)
+        list_data['subscribers'] = subs
+        save_list(list_id, list_data)
+        flash(f'{email} removed', 'success')
+    
+    return redirect(url_for('lists'))
 
 
 # ============================================================

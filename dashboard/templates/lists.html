@@ -15,66 +15,151 @@
     </form>
 </div>
 
-<div class="card">
-    <h2>All Lists ({{ lists|length }})</h2>
+{% for list in lists %}
+<div class="card list-card">
+    <div class="list-header" onclick="toggleList('{{ list.id }}')">
+        <div class="list-title">
+            <span class="expand-icon" id="icon-{{ list.id }}">▶</span>
+            <strong>{{ list.name }}</strong>
+            <span class="badge badge-muted">{{ list.accounts|length }} accounts</span>
+            {% if list.subscribers|length > 0 %}
+            <span class="badge badge-success">{{ list.subscribers|length }} subscribers</span>
+            {% endif %}
+        </div>
+        <div class="list-actions" onclick="event.stopPropagation()">
+            <button type="button" class="btn btn-small btn-secondary" onclick="toggleRename('{{ list.id }}')">Rename</button>
+            {% if list.id != 'master' %}
+            <form method="POST" action="{{ url_for('delete_list_route', list_id=list.id) }}" class="inline" onsubmit="return confirm('Delete {{ list.name }}?')">
+                <button type="submit" class="btn btn-danger btn-small">Delete</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
     
-    {% if lists %}
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>List Name</th>
-                <th>Accounts</th>
-                <th>Subscribers</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for list in lists %}
-            <tr class="{% if list.is_current %}row-active{% endif %}">
-                <td>
-                    <strong>{{ list.name }}</strong>
-                    {% if list.is_current %}
-                        <span class="badge badge-success">Active</span>
-                    {% endif %}
-                </td>
-                <td>{{ list.account_count }}</td>
-                <td>{{ list.subscriber_count }}</td>
-                <td class="actions-cell">
-                    {% if not list.is_current %}
-                    <a href="{{ url_for('select_list', list_id=list.id) }}" class="btn btn-small btn-secondary">Select</a>
-                    {% endif %}
-                    
-                    <button type="button" class="btn btn-small btn-secondary" onclick="toggleRename('{{ list.id }}')">Rename</button>
-                    
-                    {% if list.id != 'master' %}
-                    <form method="POST" action="{{ url_for('delete_list_route', list_id=list.id) }}" class="inline" onsubmit="return confirm('Delete list {{ list.name }}? This will remove all accounts and subscribers in this list.')">
-                        <button type="submit" class="btn btn-danger btn-small">Delete</button>
+    <!-- Rename form (hidden by default) -->
+    <div id="rename-{{ list.id }}" class="rename-section" style="display: none;">
+        <form method="POST" action="{{ url_for('rename_list', list_id=list.id) }}" class="inline-form">
+            <input type="text" name="name" value="{{ list.name }}" required>
+            <button type="submit" class="btn btn-small btn-primary">Save</button>
+            <button type="button" class="btn btn-small btn-secondary" onclick="toggleRename('{{ list.id }}')">Cancel</button>
+        </form>
+    </div>
+    
+    <!-- Expandable content -->
+    <div id="content-{{ list.id }}" class="list-content" style="display: none;">
+        
+        <!-- Add Account -->
+        <div class="subsection">
+            <h3>Add Account</h3>
+            <form method="POST" action="{{ url_for('add_account_to_list', list_id=list.id) }}" class="inline-form">
+                <div class="form-group">
+                    <input type="text" name="username" placeholder="Instagram username" required>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" name="include_stories" checked>
+                        Stories
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-small">Add</button>
+            </form>
+        </div>
+        
+        <!-- Accounts Table -->
+        {% if list.accounts %}
+        <div class="subsection">
+            <h3>Accounts ({{ list.accounts|length }})</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Stories</th>
+                        <th>Posts</th>
+                        <th>Stories</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in list.accounts %}
+                    <tr>
+                        <td>
+                            <a href="https://instagram.com/{{ account.username }}" target="_blank" class="account-link">
+                                @{{ account.username }}
+                            </a>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('toggle_stories_in_list', list_id=list.id, username=account.username) }}" class="inline">
+                                <button type="submit" class="badge-btn {% if account.include_stories %}badge-success{% else %}badge-muted{% endif %}">
+                                    {{ 'ON' if account.include_stories else 'OFF' }}
+                                </button>
+                            </form>
+                        </td>
+                        <td>{{ account.posts_analyzed }}</td>
+                        <td>{{ account.stories_analyzed }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('remove_account_from_list', list_id=list.id, username=account.username) }}" class="inline" onsubmit="return confirm('Remove @{{ account.username }}?')">
+                                <button type="submit" class="btn btn-danger btn-small">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="empty-state">No accounts in this list yet.</p>
+        {% endif %}
+        
+        <!-- Subscribers Section -->
+        <div class="subsection">
+            <h3>Subscribers</h3>
+            <form method="POST" action="{{ url_for('add_subscriber_to_list', list_id=list.id) }}" class="inline-form">
+                <div class="form-group">
+                    <input type="email" name="email" placeholder="email@example.com" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-small">Add Subscriber</button>
+            </form>
+            
+            {% if list.subscribers %}
+            <div class="subscriber-list">
+                {% for email in list.subscribers %}
+                <div class="subscriber-item">
+                    <span>{{ email }}</span>
+                    <form method="POST" action="{{ url_for('remove_subscriber_from_list', list_id=list.id) }}" class="inline">
+                        <input type="hidden" name="email" value="{{ email }}">
+                        <button type="submit" class="btn btn-danger btn-small">Remove</button>
                     </form>
-                    {% endif %}
-                </td>
-            </tr>
-            <tr id="rename-row-{{ list.id }}" class="rename-row" style="display: none;">
-                <td colspan="4">
-                    <form method="POST" action="{{ url_for('rename_list', list_id=list.id) }}" class="inline-form">
-                        <input type="text" name="name" value="{{ list.name }}" required>
-                        <button type="submit" class="btn btn-small btn-primary">Save</button>
-                        <button type="button" class="btn btn-small btn-secondary" onclick="toggleRename('{{ list.id }}')">Cancel</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p class="empty-state">No lists found. Create a list above to get started.</p>
-    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted" style="margin-top: 10px;">No subscribers yet.</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
+{% endfor %}
+
+{% if not lists %}
+<p class="empty-state">No lists found. Create a list above to get started.</p>
+{% endif %}
 
 <script>
+function toggleList(listId) {
+    var content = document.getElementById('content-' + listId);
+    var icon = document.getElementById('icon-' + listId);
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.textContent = '▼';
+    } else {
+        content.style.display = 'none';
+        icon.textContent = '▶';
+    }
+}
+
 function toggleRename(listId) {
-    var row = document.getElementById('rename-row-' + listId);
-    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+    var rename = document.getElementById('rename-' + listId);
+    rename.style.display = rename.style.display === 'none' ? 'block' : 'none';
 }
 </script>
 {% endblock %}
-
