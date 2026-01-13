@@ -55,3 +55,6 @@ DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin")
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
 DASHBOARD_SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "instagram-monitor-secret-key-change-me")
 
+# Alert recipient (for system alerts like stale cookies)
+ALERT_EMAIL = os.getenv("ALERT_EMAIL", "alex@counterextremism.org.uk")
+

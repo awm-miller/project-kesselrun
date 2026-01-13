@@ -50,6 +50,7 @@ from config import (
     SMTP_FROM_NAME,
     TEMPLATES_DIR,
     TEMP_DIR,
+    ALERT_EMAIL,
 )
 from scraper import InstagramScraper
 from analyzer import InstagramAnalyzer, AnalysisResult
@@ -96,14 +97,13 @@ def check_cookie_age(cookie_file: str, max_age_days: float = 7.0) -> tuple:
 
 
 def send_system_alert(subject: str, message: str):
-    """Send alert to subscribers if SMTP is configured"""
+    """Send alert to ALERT_EMAIL if SMTP is configured"""
     if not SMTP_USERNAME or not SMTP_PASSWORD:
         logger.warning(f"Cannot send alert (no SMTP): {subject}")
         return
     
-    subscribers = load_subscribers(SUBSCRIBERS_FILE)
-    if not subscribers:
-        logger.warning(f"Cannot send alert (no subscribers): {subject}")
+    if not ALERT_EMAIL:
+        logger.warning(f"Cannot send alert (no ALERT_EMAIL): {subject}")
         return
     
     send_alert(
@@ -112,7 +112,7 @@ def send_system_alert(subject: str, message: str):
         username=SMTP_USERNAME,
         password=SMTP_PASSWORD,
         from_email=SMTP_FROM_EMAIL,
-        recipients=subscribers,
+        recipients=[ALERT_EMAIL],
         subject=subject,
         message=message
     )
