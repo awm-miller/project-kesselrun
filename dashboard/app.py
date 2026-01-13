@@ -390,7 +390,7 @@ def add_account_to_list(list_id):
     
     if not username:
         flash('Username is required', 'error')
-        return redirect(url_for('lists'))
+        return redirect(url_for('lists', expanded=list_id))
     
     list_data = get_list(list_id)
     if not list_data:
@@ -401,14 +401,14 @@ def add_account_to_list(list_id):
     
     if any(a['username'] == username for a in accounts_list):
         flash(f'@{username} already in this list', 'error')
-        return redirect(url_for('lists'))
+        return redirect(url_for('lists', expanded=list_id))
     
     accounts_list.append({'username': username, 'include_stories': include_stories})
     list_data['accounts'] = accounts_list
     save_list(list_id, list_data)
     
     flash(f'@{username} added', 'success')
-    return redirect(url_for('lists'))
+    return redirect(url_for('lists', expanded=list_id))
 
 
 @app.route('/lists/<list_id>/accounts/remove/<username>', methods=['POST'])
@@ -426,7 +426,7 @@ def remove_account_from_list(list_id, username):
     save_list(list_id, list_data)
     
     flash(f'@{username} removed', 'success')
-    return redirect(url_for('lists'))
+    return redirect(url_for('lists', expanded=list_id))
 
 
 @app.route('/lists/<list_id>/accounts/toggle/<username>', methods=['POST'])
@@ -447,8 +447,7 @@ def toggle_stories_in_list(list_id, username):
     list_data['accounts'] = accounts_list
     save_list(list_id, list_data)
     
-    flash(f'Stories toggled for @{username}', 'success')
-    return redirect(url_for('lists'))
+    return redirect(url_for('lists', expanded=list_id))
 
 
 # ============================================================
@@ -463,7 +462,7 @@ def add_subscriber_to_list(list_id):
     
     if not email:
         flash('Email is required', 'error')
-        return redirect(url_for('lists'))
+        return redirect(url_for('lists', expanded=list_id))
     
     list_data = get_list(list_id)
     if not list_data:
@@ -473,14 +472,14 @@ def add_subscriber_to_list(list_id):
     subs = list_data.get('subscribers', [])
     if email in subs:
         flash(f'{email} already subscribed', 'error')
-        return redirect(url_for('lists'))
+        return redirect(url_for('lists', expanded=list_id))
     
     subs.append(email)
     list_data['subscribers'] = subs
     save_list(list_id, list_data)
     
     flash(f'{email} added', 'success')
-    return redirect(url_for('lists'))
+    return redirect(url_for('lists', expanded=list_id))
 
 
 @app.route('/lists/<list_id>/subscribers/remove', methods=['POST'])
@@ -501,7 +500,7 @@ def remove_subscriber_from_list(list_id):
         save_list(list_id, list_data)
         flash(f'{email} removed', 'success')
     
-    return redirect(url_for('lists'))
+    return redirect(url_for('lists', expanded=list_id))
 
 
 # ============================================================

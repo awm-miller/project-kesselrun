@@ -161,5 +161,14 @@ function toggleRename(listId) {
     var rename = document.getElementById('rename-' + listId);
     rename.style.display = rename.style.display === 'none' ? 'block' : 'none';
 }
+
+// Auto-expand list if specified in URL
+document.addEventListener('DOMContentLoaded', function() {
+    var params = new URLSearchParams(window.location.search);
+    var expanded = params.get('expanded');
+    if (expanded) {
+        toggleList(expanded);
+    }
+});
 </script>
 {% endblock %}
