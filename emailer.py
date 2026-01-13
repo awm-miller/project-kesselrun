@@ -444,3 +444,80 @@ def load_subscribers(filepath: str = "subscribers.json") -> List[str]:
         return []
 
 
+def send_alert(
+    smtp_server: str,
+    smtp_port: int,
+    username: str,
+    password: str,
+    from_email: str,
+    recipients: List[str],
+    subject: str,
+    message: str
+) -> bool:
+    """
+    Send a simple alert email (standalone function, no EmailSender instance needed)
+    
+    Args:
+        smtp_server: SMTP server address
+        smtp_port: SMTP port
+        username: SMTP username
+        password: SMTP password
+        from_email: Sender email
+        recipients: List of recipient emails
+        subject: Email subject
+        message: Plain text message
+    
+    Returns:
+        True if sent, False otherwise
+    """
+    if not recipients:
+        logger.warning("No recipients for alert, skipping")
+        return False
+    
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"Kessel Run Alert <{from_email}>"
+        msg['To'] = ', '.join(recipients)
+        
+        # Simple HTML alert
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head><style>
+body {{ font-family: monospace; background: #1a1a1a; color: #ff6b6b; padding: 30px; }}
+.alert {{ background: #2a1a1a; border: 2px solid #ff6b6b; border-radius: 8px; padding: 25px; max-width: 600px; }}
+h2 {{ margin-top: 0; color: #ff6b6b; }}
+p {{ color: #ccc; line-height: 1.6; }}
+.action {{ background: #ff6b6b; color: #1a1a1a; padding: 10px 20px; border-radius: 4px; text-decoration: none; display: inline-block; margin-top: 15px; font-weight: bold; }}
+</style></head>
+<body>
+<div class="alert">
+<h2>⚠️ {subject}</h2>
+<p>{message}</p>
+<a class="action" href="https://hyperdrive-dashboard.bothanlabs.com">Open Dashboard</a>
+</div>
+</body>
+</html>
+"""
+        msg.attach(MIMEText(html, 'html', 'utf-8'))
+        
+        # Send
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
+            server.starttls()
+        
+        server.login(username, password)
+        server.send_message(msg)
+        server.quit()
+        
+        logger.info(f"Alert sent: {subject}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send alert: {e}")
+        return False
+
+

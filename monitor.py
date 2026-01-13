@@ -56,7 +56,7 @@ from analyzer import InstagramAnalyzer, AnalysisResult
 from state_tracker import StateTracker
 from gdrive_uploader import GoogleDriveUploader
 from reporter import ReportGenerator
-from emailer import EmailSender, load_subscribers
+from emailer import EmailSender, load_subscribers, send_alert
 
 # Setup logging
 logging.basicConfig(
@@ -72,6 +72,50 @@ def load_accounts(filepath: str) -> List[Dict[str, Any]]:
     with open(filepath, 'r') as f:
         data = json.load(f)
     return data.get("accounts", [])
+
+
+def check_cookie_age(cookie_file: str, max_age_days: float = 7.0) -> tuple:
+    """
+    Check if cookies are stale
+    
+    Returns:
+        (is_stale: bool, age_days: float, message: str)
+    """
+    cookie_path = Path(cookie_file)
+    if not cookie_path.exists():
+        return True, -1, "Cookie file not found"
+    
+    mtime = cookie_path.stat().st_mtime
+    age_seconds = datetime.now().timestamp() - mtime
+    age_days = age_seconds / 86400
+    
+    if age_days > max_age_days:
+        return True, age_days, f"Cookies are {age_days:.1f} days old (max: {max_age_days} days)"
+    
+    return False, age_days, f"Cookies OK ({age_days:.1f} days old)"
+
+
+def send_system_alert(subject: str, message: str):
+    """Send alert to subscribers if SMTP is configured"""
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        logger.warning(f"Cannot send alert (no SMTP): {subject}")
+        return
+    
+    subscribers = load_subscribers(SUBSCRIBERS_FILE)
+    if not subscribers:
+        logger.warning(f"Cannot send alert (no subscribers): {subject}")
+        return
+    
+    send_alert(
+        smtp_server=SMTP_SERVER,
+        smtp_port=SMTP_PORT,
+        username=SMTP_USERNAME,
+        password=SMTP_PASSWORD,
+        from_email=SMTP_FROM_EMAIL,
+        recipients=subscribers,
+        subject=subject,
+        message=message
+    )
 
 
 def save_result_local(filepath: str, result: AnalysisResult):
@@ -374,12 +418,32 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
     # Check if any account needs stories
     needs_stories = any(a.get("include_stories", False) for a in accounts)
     
+    # Check cookie freshness and alert if stale
+    is_stale, cookie_age, cookie_msg = check_cookie_age(COOKIES_FILE)
+    logger.info(f"Cookie status: {cookie_msg}")
+    if is_stale and not test_mode:
+        send_system_alert(
+            subject="Cookie Refresh Required",
+            message=f"{cookie_msg}. Instagram authentication may fail. Please update cookies via the dashboard."
+        )
+    
     # Login if stories needed (will try cookies first, then username/password)
+    login_failed = False
     if needs_stories:
         cookies_exist = Path(COOKIES_FILE).exists()
         if cookies_exist or INSTAGRAM_USERNAME:
             logger.info("Attempting Instagram login for story access...")
-            scraper.login()
+            try:
+                scraper.login()
+            except Exception as e:
+                login_failed = True
+                error_msg = str(e)
+                logger.error(f"Login failed: {error_msg}")
+                if not test_mode:
+                    send_system_alert(
+                        subject="Instagram Login Failed",
+                        message=f"Instagram authentication failed: {error_msg}. Stories will not be monitored. Please check/update cookies."
+                    )
         else:
             logger.warning("Stories requested but no authentication configured")
     
