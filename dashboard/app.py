@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Instagram Monitor Dashboard
-Simple Flask dashboard for managing the Instagram monitor remotely.
+Flask dashboard for managing multiple account lists and subscribers.
 """
 import os
 import sys
@@ -22,8 +22,6 @@ from config import (
     ACCOUNTS_FILE,
     COOKIES_FILE,
     STATE_FILE,
-    STATS_FILE,
-    SUBSCRIBERS_FILE,
 )
 
 app = Flask(__name__)
@@ -68,7 +66,7 @@ def get_file_age_days(filename: str) -> float:
     if filepath.exists():
         mtime = filepath.stat().st_mtime
         age_seconds = datetime.now().timestamp() - mtime
-        return age_seconds / 86400  # Convert to days
+        return age_seconds / 86400
     return -1
 
 
@@ -79,6 +77,71 @@ def get_file_mtime(filename: str) -> str:
         mtime = filepath.stat().st_mtime
         return datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
     return "File not found"
+
+
+# ============================================================
+# LIST HELPERS
+# ============================================================
+
+def get_all_lists() -> dict:
+    """Get all lists from accounts.json"""
+    data = load_json_file(ACCOUNTS_FILE)
+    return data.get('lists', {})
+
+
+def get_list(list_id: str) -> dict:
+    """Get a specific list by ID"""
+    lists = get_all_lists()
+    return lists.get(list_id, {})
+
+
+def get_current_list_id() -> str:
+    """Get the currently selected list ID from session, default to 'master'"""
+    return session.get('current_list', 'master')
+
+
+def set_current_list_id(list_id: str):
+    """Set the currently selected list ID in session"""
+    session['current_list'] = list_id
+
+
+def get_current_list() -> tuple:
+    """Get (list_id, list_data) for the current list"""
+    list_id = get_current_list_id()
+    list_data = get_list(list_id)
+    if not list_data:
+        # Fallback to master if current list doesn't exist
+        list_id = 'master'
+        list_data = get_list(list_id)
+        set_current_list_id(list_id)
+    return list_id, list_data
+
+
+def save_list(list_id: str, list_data: dict):
+    """Save a list back to accounts.json"""
+    data = load_json_file(ACCOUNTS_FILE)
+    if 'lists' not in data:
+        data['lists'] = {}
+    data['lists'][list_id] = list_data
+    save_json_file(ACCOUNTS_FILE, data)
+
+
+def delete_list(list_id: str):
+    """Delete a list from accounts.json"""
+    data = load_json_file(ACCOUNTS_FILE)
+    if 'lists' in data and list_id in data['lists']:
+        del data['lists'][list_id]
+        save_json_file(ACCOUNTS_FILE, data)
+
+
+def generate_list_id(name: str) -> str:
+    """Generate a URL-safe list ID from a name"""
+    import re
+    # Lowercase, replace spaces with hyphens, remove non-alphanumeric
+    list_id = name.lower().strip()
+    list_id = re.sub(r'\s+', '-', list_id)
+    list_id = re.sub(r'[^a-z0-9-]', '', list_id)
+    return list_id or 'list'
 
 
 # ============================================================
@@ -110,36 +173,37 @@ def logout():
 def index():
     """Main dashboard - shows stats overview"""
     state = load_json_file(STATE_FILE)
-    accounts = load_json_file(ACCOUNTS_FILE).get('accounts', [])
+    all_lists = get_all_lists()
     
-    # Calculate per-account stats from state
-    account_stats = []
+    # Calculate stats across all lists
+    total_accounts = 0
     total_posts = 0
     total_stories = 0
     
-    for account in accounts:
-        username = account['username']
-        if username in state:
-            acc_state = state[username]
-            posts_count = len(acc_state.get('posts', []))
-            stories_count = len(acc_state.get('stories', []))
-            total_posts += posts_count
-            total_stories += stories_count
-            account_stats.append({
-                'username': username,
-                'include_stories': account.get('include_stories', False),
-                'posts_analyzed': posts_count,
-                'stories_analyzed': stories_count,
-                'last_run': acc_state.get('last_run', 'Never'),
-            })
-        else:
-            account_stats.append({
-                'username': username,
-                'include_stories': account.get('include_stories', False),
-                'posts_analyzed': 0,
-                'stories_analyzed': 0,
-                'last_run': 'Never',
-            })
+    list_stats = []
+    for list_id, list_data in all_lists.items():
+        accounts = list_data.get('accounts', [])
+        list_posts = 0
+        list_stories = 0
+        
+        for account in accounts:
+            username = account['username']
+            if username in state:
+                list_posts += len(state[username].get('posts', []))
+                list_stories += len(state[username].get('stories', []))
+        
+        total_accounts += len(accounts)
+        total_posts += list_posts
+        total_stories += list_stories
+        
+        list_stats.append({
+            'id': list_id,
+            'name': list_data.get('name', list_id),
+            'account_count': len(accounts),
+            'subscriber_count': len(list_data.get('subscribers', [])),
+            'posts': list_posts,
+            'stories': list_stories,
+        })
     
     # Cookie status
     cookie_age = get_file_age_days(COOKIES_FILE)
@@ -147,8 +211,9 @@ def index():
     cookie_stale = cookie_age > 7 if cookie_age >= 0 else True
     
     return render_template('index.html',
-        account_stats=account_stats,
-        total_accounts=len(accounts),
+        list_stats=list_stats,
+        total_lists=len(all_lists),
+        total_accounts=total_accounts,
         total_posts=total_posts,
         total_stories=total_stories,
         cookie_age=cookie_age,
@@ -162,7 +227,6 @@ def index():
 def cookies():
     """Cookie management page"""
     if request.method == 'POST':
-        # Handle cookie update
         cookie_content = request.form.get('cookies', '')
         if cookie_content.strip():
             filepath = BASE_DIR / COOKIES_FILE
@@ -173,7 +237,6 @@ def cookies():
             flash('No cookie content provided', 'error')
         return redirect(url_for('cookies'))
     
-    # Load current cookies
     filepath = BASE_DIR / COOKIES_FILE
     current_cookies = ""
     if filepath.exists():
@@ -192,13 +255,129 @@ def cookies():
     )
 
 
-@app.route('/accounts', methods=['GET'])
+# ============================================================
+# LIST MANAGEMENT ROUTES
+# ============================================================
+
+@app.route('/lists')
+@login_required
+def lists():
+    """List management page"""
+    all_lists = get_all_lists()
+    current_list_id = get_current_list_id()
+    
+    list_items = []
+    for list_id, list_data in all_lists.items():
+        list_items.append({
+            'id': list_id,
+            'name': list_data.get('name', list_id),
+            'account_count': len(list_data.get('accounts', [])),
+            'subscriber_count': len(list_data.get('subscribers', [])),
+            'is_current': list_id == current_list_id,
+        })
+    
+    return render_template('lists.html', lists=list_items, current_list_id=current_list_id)
+
+
+@app.route('/lists/select/<list_id>')
+@login_required
+def select_list(list_id):
+    """Select a list as the current working list"""
+    if get_list(list_id):
+        set_current_list_id(list_id)
+        flash(f'Switched to list: {get_list(list_id).get("name", list_id)}', 'success')
+    else:
+        flash('List not found', 'error')
+    return redirect(request.referrer or url_for('lists'))
+
+
+@app.route('/lists/create', methods=['POST'])
+@login_required
+def create_list():
+    """Create a new list"""
+    name = request.form.get('name', '').strip()
+    if not name:
+        flash('List name is required', 'error')
+        return redirect(url_for('lists'))
+    
+    list_id = generate_list_id(name)
+    
+    # Ensure unique ID
+    existing_lists = get_all_lists()
+    base_id = list_id
+    counter = 1
+    while list_id in existing_lists:
+        list_id = f"{base_id}-{counter}"
+        counter += 1
+    
+    # Create new list
+    save_list(list_id, {
+        'name': name,
+        'accounts': [],
+        'subscribers': []
+    })
+    
+    set_current_list_id(list_id)
+    flash(f'List "{name}" created', 'success')
+    return redirect(url_for('lists'))
+
+
+@app.route('/lists/rename/<list_id>', methods=['POST'])
+@login_required
+def rename_list(list_id):
+    """Rename a list"""
+    new_name = request.form.get('name', '').strip()
+    if not new_name:
+        flash('List name is required', 'error')
+        return redirect(url_for('lists'))
+    
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
+    
+    list_data['name'] = new_name
+    save_list(list_id, list_data)
+    
+    flash(f'List renamed to "{new_name}"', 'success')
+    return redirect(url_for('lists'))
+
+
+@app.route('/lists/delete/<list_id>', methods=['POST'])
+@login_required
+def delete_list_route(list_id):
+    """Delete a list"""
+    if list_id == 'master':
+        flash('Cannot delete the Master List', 'error')
+        return redirect(url_for('lists'))
+    
+    list_data = get_list(list_id)
+    if not list_data:
+        flash('List not found', 'error')
+        return redirect(url_for('lists'))
+    
+    delete_list(list_id)
+    
+    # Switch to master if we deleted the current list
+    if get_current_list_id() == list_id:
+        set_current_list_id('master')
+    
+    flash(f'List "{list_data.get("name", list_id)}" deleted', 'success')
+    return redirect(url_for('lists'))
+
+
+# ============================================================
+# ACCOUNT MANAGEMENT ROUTES (scoped to current list)
+# ============================================================
+
+@app.route('/accounts')
 @login_required
 def accounts():
-    """Account management page"""
-    data = load_json_file(ACCOUNTS_FILE)
-    accounts_list = data.get('accounts', [])
+    """Account management page for current list"""
+    list_id, list_data = get_current_list()
+    accounts_list = list_data.get('accounts', [])
     state = load_json_file(STATE_FILE)
+    all_lists = get_all_lists()
     
     # Enrich accounts with stats
     for account in accounts_list:
@@ -210,13 +389,18 @@ def accounts():
             account['posts_analyzed'] = 0
             account['stories_analyzed'] = 0
     
-    return render_template('accounts.html', accounts=accounts_list)
+    return render_template('accounts.html',
+        accounts=accounts_list,
+        current_list_id=list_id,
+        current_list_name=list_data.get('name', list_id),
+        all_lists=all_lists
+    )
 
 
 @app.route('/accounts/add', methods=['POST'])
 @login_required
 def add_account():
-    """Add a new account"""
+    """Add a new account to current list"""
     username = request.form.get('username', '').strip().lower()
     include_stories = request.form.get('include_stories') == 'on'
     
@@ -224,15 +408,13 @@ def add_account():
         flash('Username is required', 'error')
         return redirect(url_for('accounts'))
     
-    # Remove @ if present
     username = username.lstrip('@')
     
-    data = load_json_file(ACCOUNTS_FILE)
-    accounts_list = data.get('accounts', [])
+    list_id, list_data = get_current_list()
+    accounts_list = list_data.get('accounts', [])
     
-    # Check if already exists
     if any(a['username'] == username for a in accounts_list):
-        flash(f'Account @{username} already exists', 'error')
+        flash(f'Account @{username} already exists in this list', 'error')
         return redirect(url_for('accounts'))
     
     accounts_list.append({
@@ -240,23 +422,23 @@ def add_account():
         'include_stories': include_stories
     })
     
-    data['accounts'] = accounts_list
-    save_json_file(ACCOUNTS_FILE, data)
+    list_data['accounts'] = accounts_list
+    save_list(list_id, list_data)
     
-    flash(f'Account @{username} added successfully', 'success')
+    flash(f'Account @{username} added to {list_data.get("name", list_id)}', 'success')
     return redirect(url_for('accounts'))
 
 
 @app.route('/accounts/remove/<username>', methods=['POST'])
 @login_required
 def remove_account(username):
-    """Remove an account"""
-    data = load_json_file(ACCOUNTS_FILE)
-    accounts_list = data.get('accounts', [])
+    """Remove an account from current list"""
+    list_id, list_data = get_current_list()
+    accounts_list = list_data.get('accounts', [])
     
     accounts_list = [a for a in accounts_list if a['username'] != username]
-    data['accounts'] = accounts_list
-    save_json_file(ACCOUNTS_FILE, data)
+    list_data['accounts'] = accounts_list
+    save_list(list_id, list_data)
     
     flash(f'Account @{username} removed', 'success')
     return redirect(url_for('accounts'))
@@ -265,82 +447,94 @@ def remove_account(username):
 @app.route('/accounts/toggle-stories/<username>', methods=['POST'])
 @login_required
 def toggle_stories(username):
-    """Toggle stories tracking for an account"""
-    data = load_json_file(ACCOUNTS_FILE)
-    accounts_list = data.get('accounts', [])
+    """Toggle stories tracking for an account in current list"""
+    list_id, list_data = get_current_list()
+    accounts_list = list_data.get('accounts', [])
     
     for account in accounts_list:
         if account['username'] == username:
             account['include_stories'] = not account.get('include_stories', False)
             break
     
-    data['accounts'] = accounts_list
-    save_json_file(ACCOUNTS_FILE, data)
+    list_data['accounts'] = accounts_list
+    save_list(list_id, list_data)
     
     flash(f'Stories toggled for @{username}', 'success')
     return redirect(url_for('accounts'))
 
 
+# ============================================================
+# SUBSCRIBER MANAGEMENT ROUTES (scoped to current list)
+# ============================================================
+
 @app.route('/subscribers', methods=['GET', 'POST'])
 @login_required
 def subscribers():
-    """Subscriber management page"""
+    """Subscriber management page for current list"""
+    list_id, list_data = get_current_list()
+    all_lists = get_all_lists()
+    
     if request.method == 'POST':
         action = request.form.get('action')
         
         if action == 'add':
             email = request.form.get('email', '').strip()
             if email:
-                data = load_json_file(SUBSCRIBERS_FILE)
-                subs = data.get('subscribers', [])
+                subs = list_data.get('subscribers', [])
                 if email not in subs:
                     subs.append(email)
-                    data['subscribers'] = subs
-                    save_json_file(SUBSCRIBERS_FILE, data)
-                    flash(f'Subscriber {email} added', 'success')
+                    list_data['subscribers'] = subs
+                    save_list(list_id, list_data)
+                    flash(f'Subscriber {email} added to {list_data.get("name", list_id)}', 'success')
                 else:
-                    flash(f'Subscriber {email} already exists', 'error')
+                    flash(f'Subscriber {email} already exists in this list', 'error')
         
         elif action == 'remove':
             email = request.form.get('email', '').strip()
-            data = load_json_file(SUBSCRIBERS_FILE)
-            subs = data.get('subscribers', [])
+            subs = list_data.get('subscribers', [])
             if email in subs:
                 subs.remove(email)
-                data['subscribers'] = subs
-                save_json_file(SUBSCRIBERS_FILE, data)
+                list_data['subscribers'] = subs
+                save_list(list_id, list_data)
                 flash(f'Subscriber {email} removed', 'success')
         
         return redirect(url_for('subscribers'))
     
-    data = load_json_file(SUBSCRIBERS_FILE)
-    subs = data.get('subscribers', [])
+    subs = list_data.get('subscribers', [])
     
-    return render_template('subscribers.html', subscribers=subs)
+    return render_template('subscribers.html',
+        subscribers=subs,
+        current_list_id=list_id,
+        current_list_name=list_data.get('name', list_id),
+        all_lists=all_lists
+    )
 
 
 # ============================================================
-# API ENDPOINTS (for potential future use)
+# API ENDPOINTS
 # ============================================================
 
-@app.route('/api/stats')
+@app.route('/api/lists')
 @login_required
-def api_stats():
-    """API endpoint for stats"""
-    stats = load_json_file(STATS_FILE)
-    return jsonify(stats)
+def api_lists():
+    """API endpoint for all lists"""
+    return jsonify(get_all_lists())
+
+
+@app.route('/api/lists/<list_id>')
+@login_required
+def api_list(list_id):
+    """API endpoint for a specific list"""
+    return jsonify(get_list(list_id))
 
 
 @app.route('/api/accounts')
 @login_required
 def api_accounts():
-    """API endpoint for accounts list"""
-    data = load_json_file(ACCOUNTS_FILE)
-    return jsonify(data.get('accounts', []))
+    """API endpoint for accounts in current list"""
+    _, list_data = get_current_list()
+    return jsonify(list_data.get('accounts', []))
 
 
 if __name__ == '__main__':
-    # Bind to localhost only - use Nginx to expose externally
     app.run(host='127.0.0.1', port=DASHBOARD_PORT, debug=False)
-
-

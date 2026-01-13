@@ -3,10 +3,22 @@
 {% block title %}Accounts - Kessel Run{% endblock %}
 
 {% block content %}
-<h1>Account Management</h1>
+<div class="page-header">
+    <h1>Account Management</h1>
+    <div class="list-selector">
+        <label>Current List:</label>
+        <select onchange="window.location.href='/lists/select/' + this.value">
+            {% for list_id, list_data in all_lists.items() %}
+            <option value="{{ list_id }}" {% if list_id == current_list_id %}selected{% endif %}>
+                {{ list_data.name }} ({{ list_data.accounts|length }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
 
 <div class="card">
-    <h2>Add Account</h2>
+    <h2>Add Account to {{ current_list_name }}</h2>
     <form method="POST" action="{{ url_for('add_account') }}" class="inline-form">
         <div class="form-group">
             <input type="text" name="username" placeholder="Instagram username" required>
@@ -22,7 +34,7 @@
 </div>
 
 <div class="card">
-    <h2>Monitored Accounts ({{ accounts|length }})</h2>
+    <h2>{{ current_list_name }} - Accounts ({{ accounts|length }})</h2>
     
     {% if accounts %}
     <table class="data-table">
@@ -62,9 +74,7 @@
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">No accounts configured. Add an account above to get started.</p>
+    <p class="empty-state">No accounts in this list. Add an account above to get started.</p>
     {% endif %}
 </div>
 {% endblock %}
-
-

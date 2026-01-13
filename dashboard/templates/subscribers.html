@@ -3,10 +3,22 @@
 {% block title %}Subscribers - Kessel Run{% endblock %}
 
 {% block content %}
-<h1>Email Subscribers</h1>
+<div class="page-header">
+    <h1>Email Subscribers</h1>
+    <div class="list-selector">
+        <label>Current List:</label>
+        <select onchange="window.location.href='/lists/select/' + this.value">
+            {% for list_id, list_data in all_lists.items() %}
+            <option value="{{ list_id }}" {% if list_id == current_list_id %}selected{% endif %}>
+                {{ list_data.name }} ({{ list_data.subscribers|length }} subscribers)
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
 
 <div class="card">
-    <h2>Add Subscriber</h2>
+    <h2>Add Subscriber to {{ current_list_name }}</h2>
     <form method="POST" action="{{ url_for('subscribers') }}" class="inline-form">
         <input type="hidden" name="action" value="add">
         <div class="form-group">
@@ -17,7 +29,7 @@
 </div>
 
 <div class="card">
-    <h2>Current Subscribers ({{ subscribers|length }})</h2>
+    <h2>{{ current_list_name }} - Subscribers ({{ subscribers|length }})</h2>
     
     {% if subscribers %}
     <table class="data-table">
@@ -43,9 +55,7 @@
         </tbody>
     </table>
     {% else %}
-    <p class="empty-state">No subscribers yet. Add an email address above to receive daily reports.</p>
+    <p class="empty-state">No subscribers in this list. Add an email address above to receive reports for {{ current_list_name }}.</p>
     {% endif %}
 </div>
 {% endblock %}
-
-
