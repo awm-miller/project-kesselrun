@@ -162,12 +162,26 @@ function toggleRename(listId) {
     rename.style.display = rename.style.display === 'none' ? 'block' : 'none';
 }
 
-// Auto-expand list if specified in URL
+// Save scroll position before form submit
+document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+        sessionStorage.setItem('scrollPos', window.scrollY);
+    });
+});
+
+// Restore state on page load
 document.addEventListener('DOMContentLoaded', function() {
     var params = new URLSearchParams(window.location.search);
     var expanded = params.get('expanded');
     if (expanded) {
         toggleList(expanded);
+    }
+    
+    // Restore scroll position
+    var scrollPos = sessionStorage.getItem('scrollPos');
+    if (scrollPos) {
+        window.scrollTo(0, parseInt(scrollPos));
+        sessionStorage.removeItem('scrollPos');
     }
 });
 </script>
