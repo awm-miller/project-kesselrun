@@ -31,6 +31,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 from config import (
     ACCOUNT_DELAY_MIN,
     ACCOUNT_DELAY_MAX,
+    STARTUP_DELAY_MAX,
     ACCOUNTS_FILE,
     RESULTS_DIR,
     LOG_FORMAT,
@@ -360,6 +361,13 @@ async def process_account(
 
 async def main(accounts_file: str, max_posts: int = None, test_mode: bool = False):
     """Main monitoring loop"""
+    
+    # Random startup delay (0-45 minutes) to avoid predictable patterns
+    if not test_mode and STARTUP_DELAY_MAX > 0:
+        startup_delay = random.uniform(0, STARTUP_DELAY_MAX)
+        logger.info(f"Random startup delay: {startup_delay/60:.1f} minutes")
+        await asyncio.sleep(startup_delay)
+    
     logger.info("=" * 60)
     logger.info("INSTAGRAM MONITOR STARTING")
     if test_mode:
@@ -423,12 +431,13 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
     logger.info(f"Cookie status: {cookie_msg}")
     if is_stale and not test_mode:
         send_system_alert(
-            subject="Cookie Refresh Required",
+            subject="[Kessel Run] Cookie Refresh Required",
             message=f"{cookie_msg}. Instagram authentication may fail. Please update cookies via the dashboard."
         )
     
     # Login if stories needed (will try cookies first, then username/password)
-    login_failed = False
+    # If login fails, we skip ALL stories for this run (avoid repeated auth attempts)
+    skip_stories = False
     if needs_stories:
         cookies_exist = Path(COOKIES_FILE).exists()
         if cookies_exist or INSTAGRAM_USERNAME:
@@ -436,16 +445,18 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
             try:
                 scraper.login()
             except Exception as e:
-                login_failed = True
+                skip_stories = True
                 error_msg = str(e)
                 logger.error(f"Login failed: {error_msg}")
+                logger.warning("FALLBACK MODE: Skipping all stories this run, posts only")
                 if not test_mode:
                     send_system_alert(
-                        subject="Instagram Login Failed",
-                        message=f"Instagram authentication failed: {error_msg}. Stories will not be monitored. Please check/update cookies."
+                        subject="[Kessel Run] Instagram Login Failed - Stories Skipped",
+                        message=f"Instagram authentication failed: {error_msg}\n\nFallback activated: Posts are still being monitored, but stories are skipped for this run.\n\nPlease update cookies via the dashboard to restore story monitoring."
                     )
         else:
-            logger.warning("Stories requested but no authentication configured")
+            skip_stories = True
+            logger.warning("Stories requested but no authentication configured - skipping stories")
     
     # Process each account and collect results
     all_results = []
@@ -455,6 +466,11 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
         username = account["username"]
         logger.info(f"\n[{i+1}/{len(accounts)}] Processing @{username}...")
         
+        # Override include_stories if we're in fallback mode (login failed)
+        account_to_process = account.copy()
+        if skip_stories:
+            account_to_process["include_stories"] = False
+        
         try:
             result_data = await process_account(
                 scraper=scraper,
@@ -462,7 +478,7 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
                 state_tracker=state_tracker,
                 gdrive_uploader=gdrive_uploader,
                 report_generator=report_generator,
-                account=account,
+                account=account_to_process,
                 max_posts=max_posts,
                 test_mode=test_mode,
             )
