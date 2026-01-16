@@ -18,12 +18,12 @@ subscribers.json
 
 # State and data
 state.json
+stats.json
 temp_report_*.html
 temp_report_*.pdf
 
 # Temporary downloads
 temp_downloads/
-
 
 # IDE
 .vscode/
@@ -37,8 +37,6 @@ Thumbs.db
 
 # Results (optional - uncomment if you want to track results)
 # results/
-
-accounts.json
 
 
 
