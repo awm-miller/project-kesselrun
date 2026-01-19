@@ -70,9 +70,18 @@ logger = logging.getLogger("monitor")
 
 
 def load_accounts(filepath: str) -> List[Dict[str, Any]]:
-    """Load accounts from JSON file"""
+    """Load accounts from JSON file (supports both old and new multi-list format)"""
     with open(filepath, 'r') as f:
         data = json.load(f)
+    
+    # New multi-list format: {"lists": {"master": {"accounts": [...]}}}
+    if "lists" in data:
+        all_accounts = []
+        for list_id, list_data in data["lists"].items():
+            all_accounts.extend(list_data.get("accounts", []))
+        return all_accounts
+    
+    # Old format: {"accounts": [...]}
     return data.get("accounts", [])
 
 
