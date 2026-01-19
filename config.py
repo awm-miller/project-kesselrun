@@ -17,6 +17,8 @@ GEMINI_MODEL = "gemini-2.0-flash"
 # Anti-bot detection
 ACCOUNT_DELAY_MIN = 20  # seconds between accounts
 ACCOUNT_DELAY_MAX = 40  # seconds between accounts
+STORY_DELAY_MIN = 5  # seconds between story fetches
+STORY_DELAY_MAX = 15  # seconds between story fetches
 STARTUP_DELAY_MAX = 2700  # max random delay before run starts (45 minutes)
 
 # Paths
@@ -48,7 +50,7 @@ SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Kessel Run")
 
 # Alert email for system issues (cookie failures, login errors)
-ALERT_EMAIL = os.getenv("ALERT_EMAIL", "alex@counterextremism.org.uk")
+ALERT_EMAIL = os.getenv("ALERT_EMAIL", "am@bothanlabs.com")
 
 # Dashboard
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin")
