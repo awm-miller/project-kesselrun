@@ -228,6 +228,7 @@ async def process_account(
         'folder_url': None,
         'flagged_items': [],
         'date_str': date_str,
+        'scraped_stories_count': 0,  # Track raw story count for failure detection
     }
     
     logger.info(f"\n{'='*60}")
@@ -241,6 +242,9 @@ async def process_account(
         include_stories=include_stories,
         max_posts=max_posts,
     )
+    
+    # Track how many stories were scraped (for failure detection)
+    result_data['scraped_stories_count'] = len(scrape_result.stories) if scrape_result.stories else 0
     
     if scrape_result.error:
         logger.error(f"Scraping failed: {scrape_result.error}")
@@ -471,6 +475,10 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
     all_results = []
     date_str = datetime.utcnow().strftime('%Y-%m-%d')
     
+    # Track story failures for alerting
+    story_requests = 0  # accounts that requested stories
+    story_failures = 0  # accounts where stories failed (got 0 when expected)
+    
     for i, account in enumerate(accounts):
         username = account["username"]
         logger.info(f"\n[{i+1}/{len(accounts)}] Processing @{username}...")
@@ -502,6 +510,14 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
                 logger.info(f"    Flagged items: {analysis.flagged_count}")
                 if analysis.error:
                     logger.error(f"    Error: {analysis.error}")
+            
+            # Track story failures (when stories requested but got 0)
+            if account_to_process.get("include_stories", False):
+                story_requests += 1
+                # Check if we got 0 stories AND this isn't just "no new stories"
+                scraped_stories = result_data.get('scraped_stories_count', 0)
+                if scraped_stories == 0:
+                    story_failures += 1
             
             # Show state stats
             stats = state_tracker.get_stats(username)
@@ -577,6 +593,21 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
     # Update aggregate statistics
     logger.info("\nUpdating aggregate statistics...")
     update_stats(all_results, state_tracker)
+    
+    # Check for widespread story failures and alert
+    if not test_mode and story_requests > 0:
+        failure_rate = story_failures / story_requests
+        logger.info(f"\nStory fetch results: {story_failures}/{story_requests} failed ({failure_rate:.0%})")
+        
+        # Alert if more than 50% of story requests failed
+        if failure_rate > 0.5:
+            send_system_alert(
+                subject="[Kessel Run] Story Scraping Failing",
+                message=f"Story scraping is experiencing high failure rates.\n\n"
+                        f"Failed: {story_failures}/{story_requests} accounts ({failure_rate:.0%})\n\n"
+                        f"This usually means cookies need to be refreshed. "
+                        f"Please update cookies via the dashboard to restore story monitoring."
+            )
     
     logger.info("\n" + "=" * 60)
     logger.info("INSTAGRAM MONITOR COMPLETE")
