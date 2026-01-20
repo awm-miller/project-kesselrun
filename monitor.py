@@ -341,7 +341,6 @@ async def process_account(
         if post.get('flagged'):
             gdrive_url = None
             gdrive_screenshot_url = None
-            
             if gdrive_uploader:
                 if post.get('gdrive_file_id'):
                     gdrive_url = gdrive_uploader.get_file_url(post['gdrive_file_id'])
