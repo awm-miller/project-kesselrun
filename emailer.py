@@ -385,10 +385,22 @@ class EmailSender:
                 description = item.get('media_description', '')
                 instagram_url = item.get('url', '')
                 gdrive_url = item.get('gdrive_url', '')
+                gdrive_screenshot_url = item.get('gdrive_screenshot_url', '')
+                is_story = item.get('type', 'post') == 'story'
+                
                 # Format date - show YYYY-MM-DD HH:MM
                 item_date = item.get('date', '')
                 if item_date and len(item_date) >= 16:
                     item_date = item_date[:16].replace('T', ' ')
+                
+                # Build links
+                links_html = ''
+                if instagram_url:
+                    links_html += f'<a href="{instagram_url}" target="_blank">🔗 View on Instagram</a> '
+                if gdrive_url:
+                    links_html += f'<a href="{gdrive_url}" target="_blank">📥 Download</a> '
+                if gdrive_screenshot_url:
+                    links_html += f'<a href="{gdrive_screenshot_url}" target="_blank">📸 Screenshot</a> '
                 
                 html += f"""
                 <div class="flagged-item">
@@ -397,8 +409,7 @@ class EmailSender:
                     <div class="flagged-reason"><strong>Reason:</strong> {reason}</div>
                     {f'<div class="flagged-description">{description}</div>' if description else ''}
                     <div class="flagged-links">
-                        {f'<a href="{instagram_url}" target="_blank">🔗 View on Instagram</a>' if instagram_url else ''}
-                        {f'<a href="{gdrive_url}" target="_blank">📁 View Archive</a>' if gdrive_url else ''}
+                        {links_html}
                     </div>
                 </div>
 """

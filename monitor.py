@@ -340,14 +340,20 @@ async def process_account(
     for post in analysis_result.posts:
         if post.get('flagged'):
             gdrive_url = None
-            if post.get('gdrive_file_id') and gdrive_uploader:
-                gdrive_url = gdrive_uploader.get_file_url(post['gdrive_file_id'])
+            gdrive_screenshot_url = None
+            
+            if gdrive_uploader:
+                if post.get('gdrive_file_id'):
+                    gdrive_url = gdrive_uploader.get_file_url(post['gdrive_file_id'])
+                if post.get('gdrive_screenshot_id'):
+                    gdrive_screenshot_url = gdrive_uploader.get_file_url(post['gdrive_screenshot_id'])
             
             result_data['flagged_items'].append({
                 'type': 'story' if post.get('is_story') else 'post',
                 'url': post.get('url', ''),
                 'reason': post.get('flag_reason', ''),
                 'gdrive_url': gdrive_url,
+                'gdrive_screenshot_url': gdrive_screenshot_url,
                 'media_description': post.get('media_description', ''),
                 'date': post.get('date', ''),
             })
