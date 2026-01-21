@@ -395,6 +395,9 @@ async def process_scraped_account(
                 'gdrive_screenshot_url': gdrive_screenshot_url,
                 'media_description': post.get('media_description', ''),
                 'date': post.get('date', ''),
+                'caption': post.get('caption', ''),
+                'is_video': post.get('is_video', False),
+                'video_transcript': post.get('video_transcript', ''),
             })
     
     # Update state tracker

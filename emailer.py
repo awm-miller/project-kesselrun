@@ -303,13 +303,15 @@ class EmailSender:
         .account-stats {{ font-size: 12px; color: #6b6b6b; display: block; }}
         .drive-link {{ display: inline-block; background: #3eb489; color: #0a0a0a !important; padding: 6px 12px; border-radius: 3px; text-decoration: none; font-size: 12px; margin-top: 8px; font-weight: 500; }}
         .flagged-section {{ background: #1a1212; border-left-color: #ff6b6b; }}
-        .flagged-item {{ background: #0a0a0a; border: 1px solid #3a2a2a; border-radius: 4px; padding: 12px; margin-top: 10px; }}
+        .flagged-item {{ background: #0a0a0a; border: 1px solid #3a2a2a; border-radius: 4px; padding: 15px; margin-top: 10px; }}
         .flagged-badge {{ background: #ff6b6b; color: #0a0a0a; padding: 2px 8px; border-radius: 2px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }}
-        .flagged-reason {{ margin: 10px 0; font-size: 13px; color: #ccc; }}
-        .flagged-description {{ font-size: 12px; color: #888; margin: 10px 0; padding: 12px; background: #1a1a1a; border-radius: 4px; border-left: 2px solid #3eb489; }}
-        .flagged-links {{ display: flex; gap: 15px; margin-top: 10px; }}
-        .flagged-links a {{ font-size: 11px; color: #3eb489; text-decoration: none; }}
-        .flagged-links a:hover {{ text-decoration: underline; }}
+        .content-table {{ width: 100%; border-collapse: collapse; margin: 12px 0; }}
+        .content-table td {{ padding: 8px; border-bottom: 1px solid #2a2a2a; color: #ccc; vertical-align: top; }}
+        .content-table td:first-child {{ width: 150px; color: #888; white-space: nowrap; }}
+        .content-table a {{ color: #3eb489; text-decoration: none; }}
+        .content-table a:hover {{ text-decoration: underline; }}
+        .flag-reason {{ margin: 12px 0; padding: 12px; background: #1a1212; border-left: 3px solid #ff6b6b; border-radius: 3px; color: #ccc; }}
+        .ai-analysis {{ margin: 8px 0; padding: 12px; background: #121a1a; border-left: 3px solid #3eb489; border-radius: 3px; color: #aaa; font-size: 12px; }}
         .no-flagged {{ color: #3eb489; font-style: italic; }}
         .footer {{ padding: 25px 30px; text-align: center; color: #4a4a4a; font-size: 11px; border-top: 1px solid #2a2a2a; }}
     </style>
@@ -386,24 +388,87 @@ class EmailSender:
                 instagram_url = item.get('url', '')
                 gdrive_url = item.get('gdrive_url', '')
                 gdrive_screenshot_url = item.get('gdrive_screenshot_url', '')
+                caption = item.get('caption', '')
+                is_video = item.get('is_video', False)
+                video_transcript = item.get('video_transcript', '')
+                
                 # Format date - show YYYY-MM-DD HH:MM
                 item_date = item.get('date', '')
                 if item_date and len(item_date) >= 16:
                     item_date = item_date[:16].replace('T', ' ')
                 
+                # Determine content type display
+                if item_type == 'STORY':
+                    type_display = f"Story - {'Video' if is_video else 'Photo'}"
+                else:
+                    type_display = 'Video' if is_video else 'Photo'
+                
                 html += f"""
                 <div class="flagged-item">
                     <span class="flagged-badge">{item_type}</span>
                     {f'<span style="color:#a0a0a0;font-size:12px;margin-left:10px;">{item_date}</span>' if item_date else ''}
-                    <div class="flagged-reason"><strong>Reason:</strong> {reason}</div>
-                    {f'<div class="flagged-description">{description}</div>' if description else ''}
-                    <div class="flagged-links">
-                        {f'<a href="{instagram_url}" target="_blank">🔗 View on Instagram</a>' if instagram_url else ''}
-                        {f'<a href="{gdrive_url}" target="_blank">📁 Download Media</a>' if gdrive_url else ''}
-                        {f'<a href="{gdrive_screenshot_url}" target="_blank">📸 View Screenshot</a>' if gdrive_screenshot_url else ''}
-                    </div>
-                </div>
+                    
+                    <table class="content-table">
+                        <tr>
+                            <td><strong>1. Account</strong></td>
+                            <td>@{username}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2. Type</strong></td>
+                            <td>{type_display}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Caption</strong></td>
+                            <td>{caption if caption else '(no caption)'}</td>
+                        </tr>
 """
+                # Add video transcript if video
+                if is_video and video_transcript:
+                    html += f"""
+                        <tr>
+                            <td><strong>4. Video Transcript</strong></td>
+                            <td>{video_transcript}</td>
+                        </tr>
+"""
+                
+                # Add screenshot/media link
+                if item_type == 'STORY' and gdrive_screenshot_url:
+                    html += f"""
+                        <tr>
+                            <td><strong>5. Screenshot</strong></td>
+                            <td><a href="{gdrive_screenshot_url}" target="_blank">View on Google Drive</a></td>
+                        </tr>
+"""
+                elif gdrive_url:
+                    html += f"""
+                        <tr>
+                            <td><strong>5. Media</strong></td>
+                            <td><a href="{gdrive_url}" target="_blank">View on Google Drive</a></td>
+                        </tr>
+"""
+                
+                # Add post/story link
+                link_label = "6. Story Link" if item_type == 'STORY' else "6. Post Link"
+                html += f"""
+                        <tr>
+                            <td><strong>{link_label}</strong></td>
+                            <td><a href="{instagram_url}">{instagram_url}</a></td>
+                        </tr>
+                    </table>
+                    
+                    <div class="flag-reason">
+                        <strong>Flag Reason:</strong> {reason}
+                    </div>
+"""
+                # Add AI analysis if available
+                if description:
+                    html += f"""
+                    <div class="ai-analysis">
+                        <strong>AI Analysis:</strong> {description}
+                    </div>
+"""
+                
+                html += '</div>'
             
             html += '</div>'
         
@@ -426,6 +491,7 @@ class EmailSender:
 """
         
         return html
+
 
 
 def load_subscribers(filepath: str = "subscribers.json") -> List[str]:
@@ -521,5 +587,4 @@ p {{ color: #ccc; line-height: 1.6; }}
     except Exception as e:
         logger.error(f"Failed to send alert: {e}")
         return False
-
 

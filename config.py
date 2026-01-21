@@ -57,4 +57,3 @@ ALERT_EMAIL = os.getenv("ALERT_EMAIL", "am@bothanlabs.com")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin")
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "5000"))
 DASHBOARD_SECRET_KEY = os.getenv("DASHBOARD_SECRET_KEY", "kessel-run-secret-key")
-
