@@ -230,9 +230,24 @@ def cookies():
         cookie_content = request.form.get('cookies', '')
         if cookie_content.strip():
             filepath = BASE_DIR / COOKIES_FILE
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(cookie_content)
-            flash('Cookies updated successfully', 'success')
+            try:
+                # Normalize line endings to Unix style (LF)
+                cookie_content = cookie_content.replace('\r\n', '\n').replace('\r', '\n')
+                
+                # Write the cookies file
+                with open(filepath, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(cookie_content)
+                
+                # Verify the file was written correctly
+                if filepath.exists():
+                    written_size = filepath.stat().st_size
+                    flash(f'Cookies updated successfully ({written_size} bytes written to {filepath})', 'success')
+                else:
+                    flash(f'Error: File was not created at {filepath}', 'error')
+            except PermissionError:
+                flash(f'Permission denied: Cannot write to {filepath}', 'error')
+            except Exception as e:
+                flash(f'Error writing cookies: {str(e)}', 'error')
         else:
             flash('No cookie content provided', 'error')
         return redirect(url_for('cookies'))
