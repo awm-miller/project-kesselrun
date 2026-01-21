@@ -11,11 +11,13 @@ from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 import instaloader
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from playwright.sync_api import sync_playwright
+from PIL import Image, ImageDraw, ImageFont
 
 from config import (
     INSTAGRAM_USERNAME,
@@ -394,6 +396,61 @@ class InstagramScraper:
         
         return playwright_cookies
     
+    def _add_timestamp_to_screenshot(self, screenshot_path: Path) -> bool:
+        """Add a British time timestamp to the bottom right of a screenshot"""
+        try:
+            # Open the screenshot
+            img = Image.open(screenshot_path)
+            draw = ImageDraw.Draw(img)
+            
+            # Get current time in British timezone
+            uk_tz = ZoneInfo("Europe/London")
+            uk_time = datetime.now(uk_tz)
+            timestamp_text = uk_time.strftime("%d/%m/%Y %H:%M:%S GMT")
+            
+            # Try to use a decent font, fall back to default
+            font_size = 24
+            try:
+                # Try common system fonts
+                for font_name in ["arial.ttf", "Arial.ttf", "DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]:
+                    try:
+                        font = ImageFont.truetype(font_name, font_size)
+                        break
+                    except:
+                        continue
+                else:
+                    font = ImageFont.load_default()
+            except:
+                font = ImageFont.load_default()
+            
+            # Calculate text position (bottom right with padding)
+            bbox = draw.textbbox((0, 0), timestamp_text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            padding = 15
+            x = img.width - text_width - padding
+            y = img.height - text_height - padding
+            
+            # Draw background rectangle for readability
+            bg_padding = 5
+            draw.rectangle(
+                [x - bg_padding, y - bg_padding, x + text_width + bg_padding, y + text_height + bg_padding],
+                fill=(0, 0, 0, 180)  # Semi-transparent black
+            )
+            
+            # Draw timestamp in bright green
+            bright_green = (0, 255, 0)  # RGB for bright green
+            draw.text((x, y), timestamp_text, font=font, fill=bright_green)
+            
+            # Save the image
+            img.save(screenshot_path)
+            return True
+            
+        except Exception as e:
+            logger.warning(f"    Failed to add timestamp to screenshot: {e}")
+            return False
+    
     def _take_screenshot_sync(self, story_url: str, screenshot_path: Path, cookies: List[dict]) -> bool:
         """Internal sync method that runs Playwright - called from a thread pool"""
         try:
@@ -447,6 +504,10 @@ class InstagramScraper:
                 page.screenshot(path=str(screenshot_path), full_page=False)
                 
                 browser.close()
+                
+                # Add timestamp overlay to the screenshot
+                if screenshot_path.exists():
+                    self._add_timestamp_to_screenshot(screenshot_path)
                 
                 return screenshot_path.exists()
                 
