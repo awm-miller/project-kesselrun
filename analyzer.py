@@ -11,7 +11,6 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
 import google.generativeai as genai
-from PIL import Image
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
 from scraper import InstagramPost, InstagramProfile, ScrapeResult
@@ -35,56 +34,50 @@ class AnalysisResult:
 class InstagramAnalyzer:
     """Analyzes Instagram content using Gemini 2.0 Flash"""
     
-    # Prompt for image analysis
-    IMAGE_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is", "This image shows", "The image depicts", or any other preamble. Begin your response directly with the factual description.
+    # Prompt for video transcript ONLY (Call 1)
+    TRANSCRIPT_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is", etc. Begin directly with the transcript.
 
-Describe this Instagram image in 2-3 sentences.
-Focus on: people, symbols, flags, text overlays, gestures, locations.
-Specifically highlight any imagery which is antisemitic, anti-Zionist, or in support of proscribed terrorist organisations (Hamas, Hezbollah, etc).
-Be factual and objective."""
+TRANSCRIBE all speech and audio from this video. Include:
+- All spoken words (verbatim)
+- Any song lyrics or music with lyrics
+- Text that appears on screen that is being read aloud
 
-    # Prompt for video analysis
-    VIDEO_PROMPT = """IMPORTANT: Do NOT start with phrases like "Okay", "Here is the analysis", "The video shows", "This video depicts", or any other preamble. Begin your response directly with the transcript.
+If there is no speech or audio to transcribe, respond with: [NO SPEECH]
 
-Analyze this Instagram video:
+Provide ONLY the transcript, nothing else."""
 
-1. TRANSCRIBE all speech/audio - include the full transcript
-2. DESCRIBE key visual content: people, symbols, flags, text overlays, locations, gestures
-3. FLAG any content that is antisemitic, anti-Zionist, or in support of proscribed terrorist organisations (Hamas, Hezbollah, etc)
+    # Prompt for flagging analysis (Call 2)
+    FLAGGING_PROMPT = """IMPORTANT: Do NOT include any conversational filler, preamble, or phrases like "Okay", "Here is", etc. Start directly with the JSON response.
 
-Be factual and objective. Provide a complete analysis."""
+You are a content moderation analyst reviewing Instagram content from @{username}.
 
-    # Prompt for final analysis
-    ANALYSIS_PROMPT = """IMPORTANT: Do NOT include any conversational filler, preamble, or phrases like "Okay", "Here is", etc. Start directly with the clinical summary.
+TOTAL ITEMS: {total_posts}
+Each item has an INDEX number. Use these indices to identify items.
 
-You are a forensic analyst examining the Instagram activity of @{username}.
+YOUR TASK: Identify ANY items that should be flagged for review.
 
-MATERIAL VOLUME: {total_posts} total posts are provided below for analysis.
-Each post has an INDEX number. Use these indices to identify posts.
+FLAG content that contains:
+- Antisemitic content or tropes
+- Anti-Zionist rhetoric that crosses into hate speech
+- Support for proscribed terrorist organisations (Hamas, Hezbollah, PIJ, etc.)
+- Glorification of violence or terrorism
+- Genuinely hateful, inflammatory, or threatening statements
+- Extremist recruitment or propaganda
 
-TASK 1: Write a ONE PARAGRAPH clinical summary (4-6 sentences max).
-Include: volume analyzed, main topics, and any notable patterns.
-Be concise and factual.
+Do NOT flag:
+- Normal political opinions or criticism
+- News coverage or factual reporting
+- Educational content about these topics
 
-TASK 2: Identify the MOST CONTROVERSIAL posts by their INDEX number.
-Flag only posts that are CLEARLY problematic - not just political opinions. Look for:
-- Genuinely inflammatory, offensive, or hateful statements
-- Content that could cause serious public backlash
-- Statements that are objectively concerning (threats, slurs, etc.)
-- Antisemitic, anti-Zionist, or pro-terrorist content
-- Support for proscribed terrorist organisations (Hamas, Hezbollah, etc)
-
-Do NOT flag normal political opinions or criticism.
-
-POSTS DATA:
+CONTENT TO REVIEW:
 {posts_data}
 
 RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
 {{
-  "summary": "Your clinical summary here - 4-6 sentences, factual and objective.",
+  "summary": "Brief 2-3 sentence summary of the content reviewed and any concerns.",
   "flagged": [
-    {{"index": 0, "reason": "Short reason why controversial"}},
-    {{"index": 5, "reason": "Short reason why controversial"}}
+    {{"index": 0, "reason": "Clear, specific reason why this content is problematic"}},
+    {{"index": 5, "reason": "Clear, specific reason why this content is problematic"}}
   ]
 }}"""
 
@@ -146,27 +139,28 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 total_stories=0,
             )
         
-        # Step 1: Analyze each piece of media AND upload to Google Drive
+        # Step 1: Transcribe videos AND upload all media to Google Drive
         upload_msg = " + uploading to Google Drive" if self.gdrive_uploader else ""
-        logger.info(f"  Step 1: Analyzing {len(all_content)} media items{upload_msg}...")
+        logger.info(f"  Step 1: Processing {len(all_content)} media items{upload_msg}...")
         analyzed_posts = []
         
         for i, post in enumerate(all_content):
-            media_type = 'video' if post.is_video else 'image'
+            media_type = 'video' if post.is_video else 'photo'
             content_type = 'STORIES' if post.is_story else 'POSTS'
-            logger.info(f"  [{i+1}/{len(all_content)}] Analyzing {media_type}...")
+            logger.info(f"  [{i+1}/{len(all_content)}] Processing {media_type}...")
             
-            description = ""
+            video_transcript = ""
             gdrive_file_id = None
             
             if post.media_path and post.media_path.exists():
-                # Analyze with Gemini
+                # For videos: transcribe audio (Call 1)
                 if post.is_video:
-                    description = self._analyze_video(post.media_path)
-                else:
-                    description = self._analyze_image(post.media_path)
+                    video_transcript = self._transcribe_video(post.media_path)
+                    if video_transcript:
+                        logger.info(f"    ↳ Transcribed: {len(video_transcript)} chars")
+                # For images: no analysis needed (flagging uses caption only)
                 
-                # Upload to Google Drive simultaneously
+                # Upload to Google Drive
                 if self.gdrive_uploader:
                     try:
                         gdrive_file_id = self.gdrive_uploader.upload_file(
@@ -205,15 +199,15 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 "is_video": post.is_video,
                 "is_story": post.is_story,
                 "likes": post.likes,
-                "media_description": description,
+                "video_transcript": video_transcript,  # New field: transcript only
                 "media_path": str(post.media_path) if post.media_path else None,
                 "gdrive_file_id": gdrive_file_id,
                 "gdrive_screenshot_id": gdrive_screenshot_id,
             })
         
-        # Step 2: Run comprehensive analysis
-        logger.info(f"  Step 2: Running comprehensive analysis...")
-        summary, flagged = self._run_analysis(
+        # Step 2: Run flagging analysis (Call 2)
+        logger.info(f"  Step 2: Running flagging analysis...")
+        summary, flagged = self._run_flagging_analysis(
             result.profile.username,
             analyzed_posts,
         )
@@ -241,23 +235,11 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
             total_stories=len(result.stories),
         )
     
-    def _analyze_image(self, image_path: Path) -> str:
-        """Analyze an image with Gemini Vision"""
-        try:
-            img = Image.open(image_path)
-            response = self.vision_model.generate_content(
-                [self.IMAGE_PROMPT, img],
-                generation_config=genai.GenerationConfig(
-                    max_output_tokens=1024,
-                )
-            )
-            return response.text.strip()
-        except Exception as e:
-            logger.warning(f"  Image analysis failed: {e}")
-            return ""
-    
-    def _analyze_video(self, video_path: Path) -> str:
-        """Analyze a video with Gemini - upload, process, analyze"""
+    def _transcribe_video(self, video_path: Path) -> str:
+        """
+        Call 1: Transcribe video audio ONLY
+        Returns just the speech/audio transcript, no visual description.
+        """
         try:
             # Upload video to Gemini
             logger.info(f"    Uploading video ({video_path.stat().st_size / 1024 / 1024:.1f} MB)...")
@@ -273,10 +255,10 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
                 logger.warning(f"    Video processing failed")
                 return ""
             
-            # Analyze
-            logger.info(f"    Analyzing video content...")
+            # Transcribe audio only
+            logger.info(f"    Transcribing video audio...")
             response = self.vision_model.generate_content(
-                [video_file, self.VIDEO_PROMPT],
+                [video_file, self.TRANSCRIPT_PROMPT],
                 generation_config=genai.GenerationConfig(
                     max_output_tokens=4096,
                 )
@@ -288,37 +270,51 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
             except:
                 pass
             
-            return response.text.strip()
+            transcript = response.text.strip()
+            
+            # Handle no speech case
+            if transcript == "[NO SPEECH]" or not transcript:
+                return ""
+            
+            return transcript
             
         except Exception as e:
-            logger.warning(f"  Video analysis failed: {e}")
+            logger.warning(f"  Video transcription failed: {e}")
             return ""
     
-    def _run_analysis(
+    def _run_flagging_analysis(
         self,
         username: str,
         posts: List[Dict[str, Any]],
     ) -> tuple[str, List[Dict[str, Any]]]:
-        """Run comprehensive analysis on all posts"""
+        """
+        Call 2: Run flagging analysis on all posts
+        Uses caption + video_transcript to determine what should be flagged.
+        """
         try:
-            # Build content for analysis
+            # Build content for flagging analysis
             content_for_analysis = []
             for p in posts:
-                content_for_analysis.append({
+                item = {
                     "index": p["index"],
                     "date": p["date"],
-                    "is_story": p["is_story"],
-                    "is_video": p["is_video"],
-                    "caption": p["caption"],
-                    "media_description": p["media_description"],
-                })
+                    "type": "story" if p["is_story"] else "post",
+                    "media_type": "video" if p["is_video"] else "photo",
+                    "caption": p["caption"] if p["caption"] else "(no caption)",
+                }
+                # Include transcript for videos
+                if p.get("video_transcript"):
+                    item["video_transcript"] = p["video_transcript"]
+                
+                content_for_analysis.append(item)
             
-            prompt = self.ANALYSIS_PROMPT.format(
+            prompt = self.FLAGGING_PROMPT.format(
                 username=username,
                 total_posts=len(posts),
                 posts_data=json.dumps(content_for_analysis, indent=2, ensure_ascii=False),
             )
             
+            logger.info(f"    Running flagging analysis...")
             response = self.model.generate_content(prompt)
             result = self._parse_json_response(response.text)
             
@@ -328,7 +324,7 @@ RESPOND WITH VALID JSON ONLY (no markdown, no extra text):
             return summary, flagged
             
         except Exception as e:
-            logger.error(f"Analysis failed: {e}")
+            logger.error(f"Flagging analysis failed: {e}")
             return "", []
     
     def _parse_json_response(self, text: str) -> Dict[str, Any]:

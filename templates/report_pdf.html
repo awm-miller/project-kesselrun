@@ -259,50 +259,48 @@
         <div class="post flagged">
             <div class="post-header">
                 <span>
-                    <span class="post-type">{{ 'Video' if post.is_video else 'Image' }}</span>
+                    <span class="post-type">{{ 'Video' if post.is_video else 'Photo' }}</span>
                     <span class="flagged-badge">FLAGGED</span>
                 </span>
                 <span class="post-date">{{ post.date[:16].replace('T', ' ') }}</span>
             </div>
-            <div class="post-url"><strong>Instagram:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
+            <div class="post-url"><strong>Account:</strong> {{ profile.full_name }} (@{{ username }})</div>
+            <div class="post-url"><strong>Caption:</strong> {{ post.caption[:200] if post.caption else '(no caption)' }}{% if post.caption and post.caption|length > 200 %}...{% endif %}</div>
+            {% if post.is_video and post.video_transcript %}
+            <div class="post-description"><strong>Transcript:</strong> {{ post.video_transcript[:500] }}{% if post.video_transcript|length > 500 %}...{% endif %}</div>
+            {% endif %}
             {% if post.gdrive_file_id %}
-            <div class="gdrive-link"><strong>📁 Archive:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view">View on Google Drive</a></div>
+            <div class="gdrive-link"><strong>📁 Media:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view">View on Google Drive</a></div>
             {% endif %}
-            {% if post.caption %}
-            <div class="post-caption">"{{ post.caption[:200] }}{% if post.caption|length > 200 %}...{% endif %}"</div>
-            {% endif %}
+            <div class="post-url"><strong>Post Link:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ post.flag_reason }}
             </div>
-            {% if post.media_description %}
-            <div class="post-description">
-                <strong>AI Analysis:</strong> {{ post.media_description }}
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
         {% for story in flagged_stories %}
         <div class="post flagged">
             <div class="post-header">
                 <span>
-                    <span class="post-type">Story - {{ 'Video' if story.is_video else 'Image' }}</span>
+                    <span class="post-type">Story - {{ 'Video' if story.is_video else 'Photo' }}</span>
                     <span class="flagged-badge">FLAGGED</span>
                 </span>
                 <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
+            <div class="post-url"><strong>Account:</strong> {{ profile.full_name }} (@{{ username }})</div>
+            <div class="post-url"><strong>Caption:</strong> {{ story.caption[:200] if story.caption else '(no caption)' }}{% if story.caption and story.caption|length > 200 %}...{% endif %}</div>
+            {% if story.is_video and story.video_transcript %}
+            <div class="post-description"><strong>Transcript:</strong> {{ story.video_transcript[:500] }}{% if story.video_transcript|length > 500 %}...{% endif %}</div>
+            {% endif %}
             {% if story.gdrive_screenshot_id %}
             <div class="gdrive-link"><strong>📸 Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view">View on Google Drive</a></div>
             {% elif story.gdrive_file_id %}
-            <div class="gdrive-link"><strong>📁 Archive:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view">View on Google Drive</a></div>
+            <div class="gdrive-link"><strong>📁 Media:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view">View on Google Drive</a></div>
             {% endif %}
+            <div class="post-url"><strong>Story Link:</strong> <a href="{{ story.url }}">{{ story.url }}</a></div>
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ story.flag_reason }}
             </div>
-            {% if story.media_description %}
-            <div class="post-description">
-                <strong>AI Analysis:</strong> {{ story.media_description }}
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -314,23 +312,19 @@
         <div class="post{% if post.flagged %} flagged{% endif %}">
             <div class="post-header">
                 <span>
-                    <span class="post-type">{{ 'Video' if post.is_video else 'Image' }}</span>
+                    <span class="post-type">{{ 'Video' if post.is_video else 'Photo' }}</span>
                     {% if post.flagged %}<span class="flagged-badge">FLAGGED</span>{% endif %}
                 </span>
                 <span class="post-date">{{ post.date[:16].replace('T', ' ') }} - {{ post.likes }} likes</span>
             </div>
-            <div class="post-url"><strong>Instagram:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
+            <div class="post-url"><strong>Caption:</strong> {{ post.caption[:200] if post.caption else '(no caption)' }}{% if post.caption and post.caption|length > 200 %}...{% endif %}</div>
+            {% if post.is_video and post.video_transcript %}
+            <div class="post-description"><strong>Transcript:</strong> {{ post.video_transcript[:300] }}{% if post.video_transcript|length > 300 %}...{% endif %}</div>
+            {% endif %}
             {% if post.gdrive_file_id %}
-            <div class="gdrive-link"><strong>📁 Archive:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view">View on Google Drive</a></div>
+            <div class="gdrive-link"><strong>📁 Media:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view">View on Google Drive</a></div>
             {% endif %}
-            {% if post.caption %}
-            <div class="post-caption">"{{ post.caption[:200] }}{% if post.caption|length > 200 %}...{% endif %}"</div>
-            {% endif %}
-            {% if post.media_description %}
-            <div class="post-description">
-                {{ post.media_description }}
-            </div>
-            {% endif %}
+            <div class="post-url"><strong>Post Link:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
             {% if post.flagged %}
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ post.flag_reason }}
@@ -347,21 +341,21 @@
         <div class="post{% if story.flagged %} flagged{% endif %}">
             <div class="post-header">
                 <span>
-                    <span class="post-type">Story - {{ 'Video' if story.is_video else 'Image' }}</span>
+                    <span class="post-type">Story - {{ 'Video' if story.is_video else 'Photo' }}</span>
                     {% if story.flagged %}<span class="flagged-badge">FLAGGED</span>{% endif %}
                 </span>
                 <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
+            <div class="post-url"><strong>Caption:</strong> {{ story.caption[:200] if story.caption else '(no caption)' }}{% if story.caption and story.caption|length > 200 %}...{% endif %}</div>
+            {% if story.is_video and story.video_transcript %}
+            <div class="post-description"><strong>Transcript:</strong> {{ story.video_transcript[:300] }}{% if story.video_transcript|length > 300 %}...{% endif %}</div>
+            {% endif %}
             {% if story.gdrive_screenshot_id %}
             <div class="gdrive-link"><strong>📸 Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view">View on Google Drive</a></div>
             {% elif story.gdrive_file_id %}
-            <div class="gdrive-link"><strong>📁 Archive:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view">View on Google Drive</a></div>
+            <div class="gdrive-link"><strong>📁 Media:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view">View on Google Drive</a></div>
             {% endif %}
-            {% if story.media_description %}
-            <div class="post-description">
-                {{ story.media_description }}
-            </div>
-            {% endif %}
+            <div class="post-url"><strong>Story Link:</strong> <a href="{{ story.url }}">{{ story.url }}</a></div>
             {% if story.flagged %}
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ story.flag_reason }}

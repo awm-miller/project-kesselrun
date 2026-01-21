@@ -143,6 +143,22 @@
             font-style: italic;
             color: #888;
         }
+        .content-details {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .content-details td {
+            padding: 8px;
+            border-bottom: 1px solid #2a2a2a;
+            color: #ccc;
+            vertical-align: top;
+        }
+        .content-details td:first-child {
+            width: 150px;
+            color: #888;
+            white-space: nowrap;
+        }
         .post-description {
             margin: 10px 0;
             padding: 12px;
@@ -237,50 +253,91 @@
         <div class="post flagged">
             <div class="post-header">
                 <span>
-                    <span class="post-type">{{ 'Video' if post.is_video else 'Image' }}</span>
                     <span class="flagged-badge">FLAGGED</span>
                 </span>
                 <span class="post-date">{{ post.date[:16].replace('T', ' ') }}</span>
             </div>
-            <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
-            {% if post.gdrive_file_id %}
-            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
-            {% endif %}
-            {% if post.caption %}
-            <div class="post-caption">{{ post.caption }}</div>
-            {% endif %}
+            <table class="content-details">
+                <tr>
+                    <td><strong>1. Account</strong></td>
+                    <td>{{ profile.full_name }} (@{{ username }})</td>
+                </tr>
+                <tr>
+                    <td><strong>2. Type</strong></td>
+                    <td>{{ 'Video' if post.is_video else 'Photo' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>3. Caption</strong></td>
+                    <td>{{ post.caption if post.caption else '(no caption)' }}</td>
+                </tr>
+                {% if post.is_video and post.video_transcript %}
+                <tr>
+                    <td><strong>4. Transcript</strong></td>
+                    <td>{{ post.video_transcript }}</td>
+                </tr>
+                {% endif %}
+                {% if post.gdrive_file_id %}
+                <tr>
+                    <td><strong>5. Media</strong></td>
+                    <td><a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><strong>6. Post Link</strong></td>
+                    <td><a href="{{ post.url }}">{{ post.url }}</a></td>
+                </tr>
+            </table>
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ post.flag_reason }}
             </div>
-            {% if post.media_description %}
-            <div class="post-description">
-                <strong>AI Analysis:</strong> {{ post.media_description }}
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
         {% for story in flagged_stories %}
         <div class="post flagged">
             <div class="post-header">
                 <span>
-                    <span class="post-type">Story - {{ 'Video' if story.is_video else 'Image' }}</span>
-                    <span class="flagged-badge">FLAGGED</span>
+                    <span class="flagged-badge">FLAGGED STORY</span>
                 </span>
                 <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
-            {% if story.gdrive_screenshot_id %}
-            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view" target="_blank">View on Google Drive</a></div>
-            {% elif story.gdrive_file_id %}
-            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
-            {% endif %}
+            <table class="content-details">
+                <tr>
+                    <td><strong>1. Account</strong></td>
+                    <td>{{ profile.full_name }} (@{{ username }})</td>
+                </tr>
+                <tr>
+                    <td><strong>2. Type</strong></td>
+                    <td>Story - {{ 'Video' if story.is_video else 'Photo' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>3. Caption</strong></td>
+                    <td>{{ story.caption if story.caption else '(no caption)' }}</td>
+                </tr>
+                {% if story.is_video and story.video_transcript %}
+                <tr>
+                    <td><strong>4. Transcript</strong></td>
+                    <td>{{ story.video_transcript }}</td>
+                </tr>
+                {% endif %}
+                {% if story.gdrive_screenshot_id %}
+                <tr>
+                    <td><strong>5. Screenshot</strong></td>
+                    <td><a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view" target="_blank">View on Google Drive</a></td>
+                </tr>
+                {% elif story.gdrive_file_id %}
+                <tr>
+                    <td><strong>5. Media</strong></td>
+                    <td><a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><strong>6. Story Link</strong></td>
+                    <td><a href="{{ story.url }}">{{ story.url }}</a></td>
+                </tr>
+            </table>
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ story.flag_reason }}
             </div>
-            {% if story.media_description %}
-            <div class="post-description">
-                <strong>AI Analysis:</strong> {{ story.media_description }}
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -292,23 +349,40 @@
         <div class="post{% if post.flagged %} flagged{% endif %}">
             <div class="post-header">
                 <span>
-                    <span class="post-type">{{ 'Video' if post.is_video else 'Image' }}</span>
                     {% if post.flagged %}<span class="flagged-badge">FLAGGED</span>{% endif %}
                 </span>
                 <span class="post-date">{{ post.date[:16].replace('T', ' ') }} - {{ post.likes }} likes</span>
             </div>
-            <div><strong>URL:</strong> <a href="{{ post.url }}">{{ post.url }}</a></div>
-            {% if post.gdrive_file_id %}
-            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
-            {% endif %}
-            {% if post.caption %}
-            <div class="post-caption">{{ post.caption }}</div>
-            {% endif %}
-            {% if post.media_description %}
-            <div class="post-description">
-                {{ post.media_description }}
-            </div>
-            {% endif %}
+            <table class="content-details">
+                <tr>
+                    <td><strong>1. Account</strong></td>
+                    <td>{{ profile.full_name }} (@{{ username }})</td>
+                </tr>
+                <tr>
+                    <td><strong>2. Type</strong></td>
+                    <td>{{ 'Video' if post.is_video else 'Photo' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>3. Caption</strong></td>
+                    <td>{{ post.caption if post.caption else '(no caption)' }}</td>
+                </tr>
+                {% if post.is_video and post.video_transcript %}
+                <tr>
+                    <td><strong>4. Transcript</strong></td>
+                    <td>{{ post.video_transcript }}</td>
+                </tr>
+                {% endif %}
+                {% if post.gdrive_file_id %}
+                <tr>
+                    <td><strong>5. Media</strong></td>
+                    <td><a href="https://drive.google.com/file/d/{{ post.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><strong>6. Post Link</strong></td>
+                    <td><a href="{{ post.url }}">{{ post.url }}</a></td>
+                </tr>
+            </table>
             {% if post.flagged %}
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ post.flag_reason }}
@@ -325,21 +399,45 @@
         <div class="post{% if story.flagged %} flagged{% endif %}">
             <div class="post-header">
                 <span>
-                    <span class="post-type">Story - {{ 'Video' if story.is_video else 'Image' }}</span>
                     {% if story.flagged %}<span class="flagged-badge">FLAGGED</span>{% endif %}
                 </span>
                 <span class="post-date">{{ story.date[:16].replace('T', ' ') }}</span>
             </div>
-            {% if story.gdrive_screenshot_id %}
-            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view" target="_blank">View on Google Drive</a></div>
-            {% elif story.gdrive_file_id %}
-            <div><strong>Screenshot:</strong> <a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></div>
-            {% endif %}
-            {% if story.media_description %}
-            <div class="post-description">
-                {{ story.media_description }}
-            </div>
-            {% endif %}
+            <table class="content-details">
+                <tr>
+                    <td><strong>1. Account</strong></td>
+                    <td>{{ profile.full_name }} (@{{ username }})</td>
+                </tr>
+                <tr>
+                    <td><strong>2. Type</strong></td>
+                    <td>Story - {{ 'Video' if story.is_video else 'Photo' }}</td>
+                </tr>
+                <tr>
+                    <td><strong>3. Caption</strong></td>
+                    <td>{{ story.caption if story.caption else '(no caption)' }}</td>
+                </tr>
+                {% if story.is_video and story.video_transcript %}
+                <tr>
+                    <td><strong>4. Transcript</strong></td>
+                    <td>{{ story.video_transcript }}</td>
+                </tr>
+                {% endif %}
+                {% if story.gdrive_screenshot_id %}
+                <tr>
+                    <td><strong>5. Screenshot</strong></td>
+                    <td><a href="https://drive.google.com/file/d/{{ story.gdrive_screenshot_id }}/view" target="_blank">View on Google Drive</a></td>
+                </tr>
+                {% elif story.gdrive_file_id %}
+                <tr>
+                    <td><strong>5. Media</strong></td>
+                    <td><a href="https://drive.google.com/file/d/{{ story.gdrive_file_id }}/view" target="_blank">View on Google Drive</a></td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><strong>6. Story Link</strong></td>
+                    <td><a href="{{ story.url }}">{{ story.url }}</a></td>
+                </tr>
+            </table>
             {% if story.flagged %}
             <div class="flag-reason">
                 <strong>Flag Reason:</strong> {{ story.flag_reason }}

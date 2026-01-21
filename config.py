@@ -17,8 +17,9 @@ GEMINI_MODEL = "gemini-2.0-flash"
 # Anti-bot detection
 ACCOUNT_DELAY_MIN = 20  # seconds between accounts
 ACCOUNT_DELAY_MAX = 40  # seconds between accounts
-STORY_DELAY_MIN = 5  # seconds between story fetches
-STORY_DELAY_MAX = 15  # seconds between story fetches
+STORY_DELAY_MIN = 5  # seconds before fetching account's stories
+STORY_DELAY_MAX = 15  # seconds before fetching account's stories
+STORY_ITEM_DELAY = 5  # seconds between individual story items
 STARTUP_DELAY_MAX = 2700  # max random delay before run starts (45 minutes)
 
 # Paths

@@ -198,18 +198,66 @@ def update_stats(all_results: List[Dict[str, Any]], state_tracker: StateTracker)
     logger.info(f"Stats updated: {total_posts} posts, {total_stories} stories, {stats['total_flagged']} total flagged")
 
 
-async def process_account(
+async def scrape_posts_only(
     scraper: InstagramScraper,
+    account: Dict[str, Any],
+    max_posts: int = None,
+) -> Dict[str, Any]:
+    """
+    Phase 1: Scrape ONLY posts for a single account (no stories).
+    Returns the scrape result and metadata for later processing.
+    """
+    username = account["username"]
+    
+    logger.info(f"  Scraping posts for @{username}...")
+    
+    scrape_result = scraper.scrape_account(
+        username=username,
+        include_stories=False,  # Posts only in phase 1
+        max_posts=max_posts,
+    )
+    
+    return {
+        'username': username,
+        'account': account,
+        'scrape_result': scrape_result,
+        'stories': [],  # Will be populated in phase 2
+    }
+
+
+async def scrape_stories_only(
+    scraper: InstagramScraper,
+    account: Dict[str, Any],
+) -> List:
+    """
+    Phase 2: Scrape ONLY stories for a single account.
+    Returns the list of stories.
+    """
+    username = account["username"]
+    
+    logger.info(f"  Scraping stories for @{username}...")
+    
+    # Scrape with stories only (we already have posts)
+    scrape_result = scraper.scrape_account(
+        username=username,
+        include_stories=True,
+        max_posts=0,  # Skip posts, only get profile + stories
+    )
+    
+    return scrape_result.stories if scrape_result.stories else []
+
+
+async def process_scraped_account(
     analyzer: InstagramAnalyzer,
     state_tracker: StateTracker,
     gdrive_uploader: GoogleDriveUploader,
     report_generator: ReportGenerator,
-    account: Dict[str, Any],
-    max_posts: int = None,
+    scrape_data: Dict[str, Any],
     test_mode: bool = False,
 ) -> Dict[str, Any]:
     """
-    Process a single Instagram account with full pipeline
+    Process a single account's scraped data (posts + stories already collected).
+    Performs analysis, report generation, and state updates.
     
     Returns dict with:
         - analysis_result: The AnalysisResult object
@@ -217,8 +265,11 @@ async def process_account(
         - folder_url: Google Drive folder URL
         - flagged_items: List of flagged content for summary email
     """
-    username = account["username"]
-    include_stories = account.get("include_stories", False)
+    username = scrape_data['username']
+    account = scrape_data['account']
+    scrape_result = scrape_data['scrape_result']
+    stories = scrape_data.get('stories', [])
+    
     date_str = datetime.utcnow().strftime('%Y-%m-%d')
     
     result_data = {
@@ -228,26 +279,16 @@ async def process_account(
         'folder_url': None,
         'flagged_items': [],
         'date_str': date_str,
-        'scraped_stories_count': 0,  # Track raw story count for failure detection
+        'scraped_stories_count': len(stories),  # Track raw story count for failure detection
+        'requested_stories': account.get("include_stories", False),
     }
     
     logger.info(f"\n{'='*60}")
-    logger.info(f"PROCESSING: @{username}")
+    logger.info(f"ANALYZING: @{username}")
     logger.info(f"{'='*60}")
     
-    # Step 1: Scrape account (all content)
-    logger.info("Step 1: Scraping content...")
-    scrape_result = scraper.scrape_account(
-        username=username,
-        include_stories=include_stories,
-        max_posts=max_posts,
-    )
-    
-    # Track how many stories were scraped (for failure detection)
-    result_data['scraped_stories_count'] = len(scrape_result.stories) if scrape_result.stories else 0
-    
     if scrape_result.error:
-        logger.error(f"Scraping failed: {scrape_result.error}")
+        logger.error(f"Scraping had error: {scrape_result.error}")
         result_data['analysis_result'] = AnalysisResult(
             username=username,
             profile={"username": username},
@@ -256,14 +297,13 @@ async def process_account(
         )
         return result_data
     
-    # Step 2: Filter to NEW content only
-    logger.info("Step 2: Filtering new content...")
+    # Filter to NEW content only
+    logger.info("Filtering new content...")
     new_posts = state_tracker.filter_new_posts(username, scrape_result.posts)
-    new_stories = state_tracker.filter_new_stories(username, scrape_result.stories)
+    new_stories = state_tracker.filter_new_stories(username, stories)
     
     if not new_posts and not new_stories:
         logger.info(f"No new content for @{username} - skipping analysis")
-        scraper.cleanup(username)
         result_data['analysis_result'] = AnalysisResult(
             username=username,
             profile=analyzer._profile_to_dict(scrape_result.profile),
@@ -277,8 +317,8 @@ async def process_account(
     
     logger.info(f"Found {len(new_posts)} new posts and {len(new_stories)} new stories")
     
-    # Step 3: Analyze NEW content
-    logger.info("Step 3: Analyzing new content...")
+    # Analyze NEW content
+    logger.info("Analyzing new content...")
     
     # Create a modified scrape result with only new content
     from scraper import ScrapeResult
@@ -291,17 +331,17 @@ async def process_account(
     # Media files are uploaded to Google Drive during analysis (if gdrive_uploader is available)
     analysis_result = analyzer.analyze_scrape_result(new_content_result, date_str=date_str)
     
-    # Step 4: Media upload happens during analysis - just log status
+    # Media upload happens during analysis - just log status
     if not test_mode and gdrive_uploader:
         uploaded_count = sum(1 for p in analysis_result.posts if p.get('gdrive_file_id'))
-        logger.info(f"Step 4: {uploaded_count} media files uploaded to Google Drive during analysis")
+        logger.info(f"{uploaded_count} media files uploaded to Google Drive during analysis")
         # Get folder URL for summary email
         result_data['folder_url'] = gdrive_uploader.get_folder_url(username, date_str)
     elif test_mode:
-        logger.info("Step 4: Skipping Google Drive upload (test mode)")
+        logger.info("Skipping Google Drive upload (test mode)")
     
-    # Step 5: Generate reports (HTML + PDF)
-    logger.info("Step 5: Generating reports...")
+    # Generate reports (HTML + PDF)
+    logger.info("Generating reports...")
     try:
         report_paths = report_generator.generate_report(
             username=username,
@@ -335,8 +375,8 @@ async def process_account(
         logger.error(f"Report generation failed: {e}")
         report_paths = {'html': None, 'pdf': None}
     
-    # Step 6: Build flagged items list for summary email
-    logger.info("Step 6: Collecting flagged content for summary...")
+    # Build flagged items list for summary email
+    logger.info("Collecting flagged content for summary...")
     for post in analysis_result.posts:
         if post.get('flagged'):
             gdrive_url = None
@@ -357,8 +397,8 @@ async def process_account(
                 'date': post.get('date', ''),
             })
     
-    # Step 7: Update state tracker
-    logger.info("Step 7: Updating state...")
+    # Update state tracker
+    logger.info("Updating state...")
     post_shortcodes = [p.shortcode for p in new_posts]
     story_ids = [s.shortcode for s in new_stories]
     state_tracker.mark_analyzed(
@@ -366,10 +406,6 @@ async def process_account(
         post_shortcodes=post_shortcodes,
         story_ids=story_ids
     )
-    
-    # Step 8: Cleanup temp downloads (but keep report files for summary email)
-    logger.info("Step 8: Cleaning up temp downloads...")
-    scraper.cleanup(username)
     
     logger.info(f"Processing complete for @{username}")
     
@@ -450,7 +486,7 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
     if is_stale and not test_mode:
         send_system_alert(
             subject="[Kessel Run] Cookie Refresh Required",
-            message=f"{cookie_msg}. Instagram authentication may fail. Please update cookies via the dashboard."
+            message=f"{cookie_msg}. Instagram authentication may fail.\n\nUpdate cookies here: https://kesselrun.bothanlabs.com/cookies"
         )
     
     # Login if stories needed (will try cookies first, then username/password)
@@ -470,38 +506,107 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
                 if not test_mode:
                     send_system_alert(
                         subject="[Kessel Run] Instagram Login Failed - Stories Skipped",
-                        message=f"Instagram authentication failed: {error_msg}\n\nFallback activated: Posts are still being monitored, but stories are skipped for this run.\n\nPlease update cookies via the dashboard to restore story monitoring."
+                        message=f"Instagram authentication failed: {error_msg}\n\nFallback activated: Posts are still being monitored, but stories are skipped for this run.\n\nUpdate cookies here: https://kesselrun.bothanlabs.com/cookies"
                     )
         else:
             skip_stories = True
             logger.warning("Stories requested but no authentication configured - skipping stories")
     
-    # Process each account and collect results
-    all_results = []
+    # ========================================
+    # PHASE 1: Scrape all posts (no auth needed)
+    # ========================================
+    logger.info("\n" + "=" * 60)
+    logger.info("PHASE 1: SCRAPING ALL POSTS")
+    logger.info("=" * 60)
+    
+    scraped_data = []  # Store scrape results for later processing
     date_str = datetime.utcnow().strftime('%Y-%m-%d')
+    
+    for i, account in enumerate(accounts):
+        username = account["username"]
+        logger.info(f"\n[{i+1}/{len(accounts)}] Scraping posts for @{username}...")
+        
+        try:
+            data = await scrape_posts_only(
+                scraper=scraper,
+                account=account,
+                max_posts=max_posts,
+            )
+            scraped_data.append(data)
+            
+            posts_count = len(data['scrape_result'].posts) if data['scrape_result'].posts else 0
+            logger.info(f"  Got {posts_count} posts")
+            
+        except Exception as e:
+            logger.error(f"Failed to scrape posts for @{username}: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Wait between accounts (random delay for anti-bot detection)
+        if i < len(accounts) - 1:
+            delay = random.uniform(ACCOUNT_DELAY_MIN, ACCOUNT_DELAY_MAX)
+            logger.info(f"  Waiting {delay:.0f}s before next account...")
+            await asyncio.sleep(delay)
+    
+    # ========================================
+    # PHASE 2: Scrape all stories (auth needed)
+    # ========================================
+    # Get accounts that need stories
+    story_accounts = [d for d in scraped_data if d['account'].get("include_stories", False) and not skip_stories]
+    
+    if story_accounts:
+        logger.info("\n" + "=" * 60)
+        logger.info(f"PHASE 2: SCRAPING STORIES ({len(story_accounts)} accounts)")
+        logger.info("=" * 60)
+        
+        for i, data in enumerate(story_accounts):
+            username = data['username']
+            logger.info(f"\n[{i+1}/{len(story_accounts)}] Scraping stories for @{username}...")
+            
+            try:
+                stories = await scrape_stories_only(
+                    scraper=scraper,
+                    account=data['account'],
+                )
+                data['stories'] = stories
+                logger.info(f"  Got {len(stories)} stories")
+                
+            except Exception as e:
+                logger.error(f"Failed to scrape stories for @{username}: {e}")
+                data['stories'] = []
+            
+            # Wait between story fetches
+            if i < len(story_accounts) - 1:
+                delay = random.uniform(ACCOUNT_DELAY_MIN, ACCOUNT_DELAY_MAX)
+                logger.info(f"  Waiting {delay:.0f}s before next account...")
+                await asyncio.sleep(delay)
+    else:
+        logger.info("\n(Skipping story phase - no accounts need stories or auth failed)")
+    
+    # ========================================
+    # PHASE 3: Process all scraped data
+    # ========================================
+    logger.info("\n" + "=" * 60)
+    logger.info("PHASE 3: PROCESSING & ANALYZING")
+    logger.info("=" * 60)
+    
+    all_results = []
     
     # Track story failures for alerting
     story_requests = 0  # accounts that requested stories
     story_failures = 0  # accounts where stories failed (got 0 when expected)
     
-    for i, account in enumerate(accounts):
-        username = account["username"]
-        logger.info(f"\n[{i+1}/{len(accounts)}] Processing @{username}...")
-        
-        # Override include_stories if we're in fallback mode (login failed)
-        account_to_process = account.copy()
-        if skip_stories:
-            account_to_process["include_stories"] = False
+    for i, data in enumerate(scraped_data):
+        username = data['username']
+        logger.info(f"\n[{i+1}/{len(scraped_data)}] Processing @{username}...")
         
         try:
-            result_data = await process_account(
-                scraper=scraper,
+            result_data = await process_scraped_account(
                 analyzer=analyzer,
                 state_tracker=state_tracker,
                 gdrive_uploader=gdrive_uploader,
                 report_generator=report_generator,
-                account=account_to_process,
-                max_posts=max_posts,
+                scrape_data=data,
                 test_mode=test_mode,
             )
             all_results.append(result_data)
@@ -517,9 +622,8 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
                     logger.error(f"    Error: {analysis.error}")
             
             # Track story failures (when stories requested but got 0)
-            if account_to_process.get("include_stories", False):
+            if result_data.get('requested_stories', False) and not skip_stories:
                 story_requests += 1
-                # Check if we got 0 stories AND this isn't just "no new stories"
                 scraped_stories = result_data.get('scraped_stories_count', 0)
                 if scraped_stories == 0:
                     story_failures += 1
@@ -533,12 +637,11 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
             logger.error(f"Failed to process @{username}: {e}")
             import traceback
             traceback.print_exc()
-        
-        # Wait between accounts (random delay for anti-bot detection)
-        if i < len(accounts) - 1:
-            delay = random.uniform(ACCOUNT_DELAY_MIN, ACCOUNT_DELAY_MAX)
-            logger.info(f"\nWaiting {delay:.0f}s before next account...")
-            await asyncio.sleep(delay)
+    
+    # Cleanup temp downloads for all accounts
+    logger.info("\nCleaning up temp downloads...")
+    for data in scraped_data:
+        scraper.cleanup(data['username'])
     
     # Send aggregated summary email
     if not test_mode and email_sender and subscribers and all_results:
@@ -610,8 +713,8 @@ async def main(accounts_file: str, max_posts: int = None, test_mode: bool = Fals
                 subject="[Kessel Run] Story Scraping Failing",
                 message=f"Story scraping is experiencing high failure rates.\n\n"
                         f"Failed: {story_failures}/{story_requests} accounts ({failure_rate:.0%})\n\n"
-                        f"This usually means cookies need to be refreshed. "
-                        f"Please update cookies via the dashboard to restore story monitoring."
+                        f"This usually means cookies need to be refreshed.\n\n"
+                        f"Update cookies here: https://kesselrun.bothanlabs.com/cookies"
             )
     
     logger.info("\n" + "=" * 60)
