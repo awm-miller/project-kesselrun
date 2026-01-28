@@ -587,4 +587,3 @@ p {{ color: #ccc; line-height: 1.6; }}
     except Exception as e:
         logger.error(f"Failed to send alert: {e}")
         return False
-

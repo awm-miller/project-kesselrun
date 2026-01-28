@@ -298,16 +298,252 @@ class InstagramScraper:
         profile: instaloader.Profile,
         download_dir: Path,
     ) -> List[InstagramPost]:
-        """Scrape stories (requires login)"""
+        """Scrape stories - uses Playwright/Firefox (bypasses Instagram API blocks)"""
         stories = []
+        username = profile.username
         
-        logger.info(f"  Scraping stories...")
+        logger.info(f"  Scraping stories via Playwright/Firefox...")
+        
+        try:
+            stories = self._scrape_stories_playwright(username, download_dir)
+        except Exception as e:
+            logger.warning(f"  Playwright story scraping failed: {e}")
+            # Fallback to instaloader API (may fail but worth trying)
+            logger.info(f"  Trying fallback to instaloader API...")
+            stories = self._scrape_stories_instaloader(profile, download_dir)
+        
+        return stories
+    
+    def _scrape_stories_playwright(
+        self,
+        username: str,
+        download_dir: Path,
+    ) -> List[InstagramPost]:
+        """Scrape stories using Playwright/Firefox browser automation."""
+        import re
+        
+        stories = []
+        cookies = self._get_playwright_cookies()
+        
+        if not cookies:
+            logger.warning("  No cookies available for Playwright")
+            return stories
+        
+        logger.info(f"  Loaded {len(cookies)} cookies for Firefox")
+        
+        with sync_playwright() as p:
+            # Use Firefox - it has better video playback in headless mode
+            browser = p.firefox.launch(headless=True)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+                viewport={'width': 1280, 'height': 900},
+            )
+            context.add_cookies(cookies)
+            page = context.new_page()
+            
+            # Intercept video CDN URLs - use route to capture ALL requests
+            captured_video_urls = []
+            def handle_route(route):
+                url = route.request.url
+                # Instagram video CDN URLs contain these patterns
+                if ('.mp4' in url or 'video' in url.lower()) and ('cdninstagram.com' in url or 'fbcdn.net' in url):
+                    captured_video_urls.append(url)
+                route.continue_()
+            
+            # Intercept all requests to CDN
+            page.route("**/*cdninstagram.com*", handle_route)
+            page.route("**/*fbcdn.net*", handle_route)
+            
+            # Navigate to stories
+            story_url = f"https://www.instagram.com/stories/{username}/"
+            logger.info(f"  Navigating to: {story_url}")
+            page.goto(story_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+            
+            # Click "View story" if present
+            view_btn = page.get_by_text("View story", exact=False)
+            if view_btn.count() > 0:
+                logger.info(f"  Clicking 'View story'...")
+                view_btn.first.click()
+                time.sleep(3)
+            
+            # Wait for story to fully load after clicking view
+            time.sleep(3)
+            
+            # Check if we have stories
+            current_url = page.url
+            if "/stories/" not in current_url or username not in current_url:
+                logger.info(f"  No stories available for @{username}")
+                browser.close()
+                return stories
+            
+            # Scrape each story
+            story_count = 0
+            max_stories = 30  # Safety limit
+            seen_ids = set()
+            
+            while story_count < max_stories:
+                current_url = page.url
+                
+                # Check if we've left stories section
+                if "/stories/" not in current_url:
+                    logger.info(f"  Left stories section")
+                    break
+                
+                # Extract story ID from URL (may not be present for first story)
+                match = re.search(r'/stories/[^/]+/(\d+)', current_url)
+                story_id = match.group(1) if match else None
+                
+                # If no ID in URL, try to get it from page data or generate temp ID
+                if not story_id:
+                    # Try clicking to advance to get a proper URL with ID
+                    if story_count == 0:
+                        # First story - advance once to get proper URL
+                        logger.info(f"  First story - advancing to get story ID...")
+                        page.mouse.click(page.viewport_size['width'] - 100, page.viewport_size['height'] // 2)
+                        time.sleep(3)
+                        current_url = page.url
+                        match = re.search(r'/stories/[^/]+/(\d+)', current_url)
+                        story_id = match.group(1) if match else f"temp_{story_count}"
+                    else:
+                        story_id = f"temp_{story_count}"
+                
+                # Check if we've looped back
+                if story_id in seen_ids:
+                    logger.info(f"  Reached end (looped back to {story_id})")
+                    break
+                seen_ids.add(story_id)
+                
+                story_count += 1
+                
+                # Delay between stories (except first)
+                if story_count > 1:
+                    logger.info(f"    Waiting {STORY_ITEM_DELAY}s before next story...")
+                    time.sleep(STORY_ITEM_DELAY)
+                
+                # Check if it's a video
+                is_video = False
+                video_url = None
+                video_elem = page.query_selector('video')
+                if video_elem:
+                    is_video = True
+                    # Remember how many URLs we had before this video
+                    urls_before = len(captured_video_urls)
+                    
+                    # Wait for video to load and start playing (triggers network request)
+                    time.sleep(1)
+                    try:
+                        # Force video to play and load
+                        page.evaluate("""
+                            const video = document.querySelector('video');
+                            if (video) {
+                                video.currentTime = 0;
+                                video.play();
+                            }
+                        """)
+                        time.sleep(3)  # Give time for video to load from CDN
+                    except:
+                        pass
+                    
+                    # Get the actual CDN URL from captured network requests (new ones since this video)
+                    new_urls = captured_video_urls[urls_before:]
+                    if new_urls:
+                        video_url = new_urls[-1]  # Most recent video URL for this story
+                        logger.info(f"    ↳ Captured video CDN URL")
+                    else:
+                        # Fallback - try to get src directly (might be blob)
+                        try:
+                            video_url = page.evaluate("document.querySelector('video')?.src")
+                            if video_url and not video_url.startswith('blob:'):
+                                logger.info(f"    ↳ Got video src directly")
+                        except:
+                            pass
+                
+                # Try to get image URL if not video
+                image_url = None
+                if not is_video:
+                    try:
+                        img_elem = page.query_selector('img[srcset], img[src*="instagram"]')
+                        if img_elem:
+                            srcset = img_elem.get_attribute('srcset')
+                            if srcset:
+                                # Get highest resolution from srcset
+                                parts = srcset.split(',')
+                                image_url = parts[-1].strip().split()[0]
+                            else:
+                                image_url = img_elem.get_attribute('src')
+                    except:
+                        pass
+                
+                media_type = "video" if is_video else "image"
+                logger.info(f"  [Story {story_count}] ID: {story_id} - {media_type}")
+                
+                # Take screenshot
+                screenshot_path = download_dir / f"story_{story_id}_screenshot.png"
+                screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(screenshot_path))
+                self._add_timestamp_to_screenshot(screenshot_path)
+                logger.info(f"    ↳ Screenshot: {screenshot_path.name}")
+                
+                # Download media
+                media_url = video_url if is_video else image_url
+                media_path = None
+                if media_url:
+                    ext = "mp4" if is_video else "jpg"
+                    media_path = download_dir / f"story_{story_id}.{ext}"
+                    if self._download_media(media_url, media_path):
+                        logger.info(f"    ↳ Media downloaded: {media_path.name}")
+                    else:
+                        media_path = None
+                
+                # Create story post object
+                story_post = InstagramPost(
+                    shortcode=story_id,
+                    url=f"https://www.instagram.com/stories/{username}/{story_id}/",
+                    caption="",  # Stories rarely have captions accessible via browser
+                    date=datetime.now(timezone.utc),
+                    likes=0,
+                    is_video=is_video,
+                    is_story=True,
+                    media_path=media_path,
+                    video_url=video_url,
+                    screenshot_path=screenshot_path if screenshot_path.exists() else None,
+                )
+                stories.append(story_post)
+                
+                # Navigate to next story (click right side)
+                try:
+                    page.mouse.click(page.viewport_size['width'] - 100, page.viewport_size['height'] // 2)
+                    time.sleep(2)
+                    
+                    # If URL didn't change, try arrow key
+                    if page.url == current_url:
+                        page.keyboard.press("ArrowRight")
+                        time.sleep(2)
+                        if page.url == current_url:
+                            logger.info(f"  No more stories")
+                            break
+                except Exception as e:
+                    logger.warning(f"  Navigation error: {e}")
+                    break
+            
+            browser.close()
+        
+        logger.info(f"  Scraped {len(stories)} stories via Playwright")
+        return stories
+    
+    def _scrape_stories_instaloader(
+        self,
+        profile: instaloader.Profile,
+        download_dir: Path,
+    ) -> List[InstagramPost]:
+        """Fallback: Scrape stories using instaloader API (often blocked)"""
+        stories = []
         
         try:
             for story in self.loader.get_stories(userids=[profile.userid]):
                 for i, item in enumerate(story.get_items()):
                     try:
-                        # Delay between story items (except first one)
                         if i > 0:
                             logger.info(f"    Waiting {STORY_ITEM_DELAY}s before next story item...")
                             time.sleep(STORY_ITEM_DELAY)
@@ -315,7 +551,6 @@ class InstagramScraper:
                         is_video = item.is_video
                         media_url = item.video_url if is_video else item.url
                         
-                        # Download media
                         ext = "mp4" if is_video else "jpg"
                         media_path = download_dir / f"story_{item.mediaid}.{ext}"
                         
@@ -324,7 +559,6 @@ class InstagramScraper:
                         
                         story_url = f"https://www.instagram.com/stories/{profile.username}/{item.mediaid}/"
                         
-                        # Take screenshot of the story
                         screenshot_path = download_dir / f"story_{item.mediaid}_screenshot.png"
                         screenshot_success = self.take_story_screenshot(
                             story_url=story_url,
@@ -337,7 +571,7 @@ class InstagramScraper:
                             url=story_url,
                             caption=item.caption or "",
                             date=item.date_utc.replace(tzinfo=timezone.utc),
-                            likes=0,  # Stories don't have public like counts
+                            likes=0,
                             is_video=is_video,
                             is_story=True,
                             media_path=media_path if media_path.exists() else None,
@@ -355,9 +589,9 @@ class InstagramScraper:
                         continue
                         
         except instaloader.exceptions.LoginRequiredException:
-            logger.error("  Login required for stories")
+            logger.error("  Login required for stories (API blocked)")
         except Exception as e:
-            logger.warning(f"  Error scraping stories: {e}")
+            logger.warning(f"  Instaloader API error: {e}")
         
         return stories
     
@@ -455,7 +689,8 @@ class InstagramScraper:
         """Internal sync method that runs Playwright - called from a thread pool"""
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                # Use Firefox for better video playback support in headless mode
+                browser = p.firefox.launch(headless=True)
                 context = browser.new_context(
                     viewport={'width': 430, 'height': 932},  # iPhone 14 Pro Max dimensions
                     user_agent='Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
@@ -468,7 +703,7 @@ class InstagramScraper:
                 page = context.new_page()
                 
                 # Navigate to story URL
-                page.goto(story_url, wait_until='networkidle', timeout=30000)
+                page.goto(story_url, wait_until='domcontentloaded', timeout=30000)
                 
                 # Wait a bit for initial load
                 page.wait_for_timeout(2000)
