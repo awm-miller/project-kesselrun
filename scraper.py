@@ -305,7 +305,10 @@ class InstagramScraper:
         logger.info(f"  Scraping stories via Playwright/Firefox...")
         
         try:
-            stories = self._scrape_stories_playwright(username, download_dir)
+            # Run Playwright in a thread to avoid asyncio loop conflicts
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self._scrape_stories_playwright, username, download_dir)
+                stories = future.result(timeout=300)  # 5 minute timeout
         except Exception as e:
             logger.warning(f"  Playwright story scraping failed: {e}")
             # Fallback to instaloader API (may fail but worth trying)
